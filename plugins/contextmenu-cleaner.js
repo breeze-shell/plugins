@@ -1,7 +1,7 @@
 // @name: 右键菜单清理
 // @description: 多功能、可配置的右键菜单清理工具
 // @author: MicroBlock
-// @version: 0.0.1
+// @version: 0.0.2
 // @lang: zh
 
 import * as shell from "mshell"
@@ -53,39 +53,46 @@ setTimeout(() => {
     }
 
     const write_config_key = (key, value) => {
-        const write = (keys, obj, value) => {
-            if (keys.length === 1) {
-                obj[keys[0]] = value
-                return
-            }
-            if (!obj[keys[0]]) {
-                obj[keys[0]] = {}
-            }
-            write(keys.slice(1), obj[keys[0]], value)
-        }
+        let obj = config
 
-        write(key.split('.'), config, value)
+        const keys = key.split('.')
+        for (let i = 0; i < keys.length - 1; i++) {
+            if (!obj[keys[i]]) {
+                obj[keys[i]] = {}
+            }
+            obj = obj[keys[i]]
+        }
+        obj[keys[keys.length - 1]] = value
         write_config()
     }
 
     on_plugin_menu["右键菜单清理"] = ((menu) => {
-        const createToggleMenu = (menu, name, configKey) => {
+        const createToggleMenu = (menu, name, configKey, submenu) => {
             const menuItem = menu.append_menu({
                 name,
                 action() {
-                    write_config_key(configKey, !read_config_key(configKey))
-                    menuItem.set_data({
-                        icon_svg: read_config_key(configKey) ? ICON_CHECKED : ICON_EMPTY
-                    })
+                    try {
+                        write_config_key(configKey, !read_config_key(configKey))
+                        menuItem.set_data({
+                            icon_svg: read_config_key(configKey) ? ICON_CHECKED : ICON_EMPTY
+                        })
+                    } catch (e) {
+                        shell.println(e, e.stack)
+                    }
                 },
-                icon_svg: read_config_key(configKey) ? ICON_CHECKED : ICON_EMPTY
+                icon_svg: read_config_key(configKey) ? ICON_CHECKED : ICON_EMPTY,
+                submenu
             })
             return menuItem
         }
 
-        createToggleMenu(menu, '合并 "用...打开"', 'merge.open_with')
+        createToggleMenu(menu, '合并 "用...打开"', 'merge.open_with', submenu => {
+            createToggleMenu(submenu, '不合并使用 Code 打开', 'merge.open_with_allow.code')
+            createToggleMenu(submenu, '不合并在终端中打开', 'merge.open_with_allow.terminal')
+        })
         createToggleMenu(menu, '合并视图操作', 'merge.view_operation')
         createToggleMenu(menu, '合并不常用菜单', 'merge.uncommon')
+
     })
 
     shell.menu_controller.add_menu_listener(ctx => {
@@ -110,12 +117,18 @@ setTimeout(() => {
             }
 
             if (read_config_key('merge.open_with')) {
+                const ignore = []
+                if (read_config_key('merge.open_with_allow.code'))
+                    ignore.push('通过 Code 打开')
+
+                if (read_config_key('merge.open_with_allow.terminal'))
+                    ignore.push('在终端中打开')
+
                 mergeMenuItems(ctx.menu.get_items().filter(menu => {
                     const data = menu.data()
                     const blacklist = [
                         '在新窗口中打开', '在新标签页中打开', '打开', '打开方式'
                     ]
-                    if (blacklist.includes(data.name)) return false
                     const whitelist = [
                         // common matches
                         '打开', 'open', '使用', '播放列表', '播放队列', '编辑',
@@ -123,6 +136,9 @@ setTimeout(() => {
                         'ida pro'
                     ]
                     const fullmatch = ['WizTree']
+
+                    if (ignore.includes(data.name)) return false
+                    if (blacklist.includes(data.name)) return false
                     return whitelist.some(name => data.name?.toLowerCase().includes(name)) ||
                         fullmatch.some(name => data.name === name)
                 }), '打开方式')
