@@ -1,13 +1,34 @@
-// @name: 右键菜单清理
-// @description: 多功能、可配置的右键菜单清理工具
+// @name: 右键菜单清理 - Context Menu Cleaner
+// @description: 多功能、可配置的右键菜单清理工具 / A versatile and configurable context menu cleaner
 // @author: MicroBlock
-// @version: 0.0.2
-// @lang: zh
+// @version: 0.0.3
 
 import * as shell from "mshell"
 import { setTimeout } from "qjs:os"
 const ICON_CHECKED = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 12 12"><path fill="currentColor" d="M9.765 3.205a.75.75 0 0 1 .03 1.06l-4.25 4.5a.75.75 0 0 1-1.075.015L2.22 6.53a.75.75 0 0 1 1.06-1.06l1.705 1.704l3.72-3.939a.75.75 0 0 1 1.06-.03"/></svg>`
 const ICON_EMPTY = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 12 12"></svg>`
+
+
+const languages = {
+    'en-US': {
+        '合并 "用...打开"': 'Merge "Open with"',
+        '不合并使用 Code 打开': 'Do not merge open with Code',
+        '不合并在终端中打开': 'Do not merge open in terminal',
+        '合并视图操作': 'Merge view operation',
+        '合并不常用菜单': 'Merge uncommon menu',
+        '不合并使用': 'Do not merge open with',
+        '打开方式': 'Open with',
+        '视图操作': 'View operation',
+        '不常用': 'Uncommon',
+        '右键菜单清理': 'Context Menu Cleaner'
+    }, 'zh-CN': {
+    }
+}
+
+const currentLang = shell.breeze.user_language() === 'zh-CN' ? 'zh-CN' : 'en-US'
+const t = (key) => {
+    return languages[currentLang][key] || key
+}
 
 const config_name = "contextmenu-cleaner.json"
 const default_config = {
@@ -66,7 +87,7 @@ const write_config_key = (key, value) => {
     write_config()
 }
 
-on_plugin_menu["右键菜单清理"] = ((menu) => {
+on_plugin_menu["右键菜单清理 - Context Menu Cleaner"] = ((menu) => {
     const createToggleMenu = (menu, name, configKey, submenu) => {
         const menuItem = menu.append_menu({
             name,
@@ -86,14 +107,15 @@ on_plugin_menu["右键菜单清理"] = ((menu) => {
         return menuItem
     }
 
-    createToggleMenu(menu, '合并 "用...打开"', 'merge.open_with', submenu => {
-        createToggleMenu(submenu, '不合并使用 Code 打开', 'merge.open_with_allow.code')
-        createToggleMenu(submenu, '不合并在终端中打开', 'merge.open_with_allow.terminal')
+    createToggleMenu(menu, t('合并 "用...打开"'), 'merge.open_with', submenu => {
+        createToggleMenu(submenu, t('不合并使用 Code 打开'), 'merge.open_with_allow.code')
+        createToggleMenu(submenu, t('不合并在终端中打开'), 'merge.open_with_allow.terminal')
     })
-    createToggleMenu(menu, '合并视图操作', 'merge.view_operation')
-    createToggleMenu(menu, '合并不常用菜单', 'merge.uncommon')
+    createToggleMenu(menu, t('合并视图操作'), 'merge.view_operation')
+    createToggleMenu(menu, t('合并不常用菜单'), 'merge.uncommon')
 
 })
+
 
 shell.menu_controller.add_menu_listener(ctx => {
     try {
@@ -141,24 +163,36 @@ shell.menu_controller.add_menu_listener(ctx => {
                 if (blacklist.includes(data.name)) return false
                 return whitelist.some(name => data.name?.toLowerCase().includes(name)) ||
                     fullmatch.some(name => data.name === name)
-            }), '打开方式')
+            }), t('打开方式'))
         }
 
         if (read_config_key('merge.view_operation')) {
             mergeMenuItems(ctx.menu.get_items().filter(menu => {
                 const data = menu.data()
-                const fullmatch = ['查看', '排序方式', '分组依据']
+                const fullmatch = [
+                    // zh-CN
+                    '查看', '排序方式', '分组依据',
+                    // en-US
+                    'View', 'Sort by', 'Group by']
                 return fullmatch.some(name => name === data.name)
-            }), '视图操作')
+            }), t('视图操作'))
         }
 
         if (read_config_key('merge.uncommon')) {
             mergeMenuItems(ctx.menu.get_items().filter(menu => {
                 const data = menu.data()
-                const fullmatch = ['自定义文件夹...', '授予访问权限', '还原以前的版本', '包含到库中', '固定到“开始”', '添加到收藏夹', '共享']
+                const fullmatch = [
+                    // zh-CN
+                    '自定义文件夹...', '授予访问权限', '还原以前的版本',
+                    '包含到库中', '固定到“开始”', '添加到收藏夹', '共享',
+                    // en-US
+                    'Customize folder...', 'Restore previous versions',
+                    'Include in library', 'Pin to Start', 'Add to favorites',
+                    'Share', 'Send to', 'Give access to'
+                ]
                 const whitelist = ['发送']
                 return fullmatch.some(name => name === data.name) || whitelist.some(name => data.name?.includes(name))
-            }), '不常用')
+            }), t('不常用'))
         }
 
         // merge duplicate spacer
