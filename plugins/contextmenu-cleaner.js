@@ -4,7 +4,6 @@
 // @version: 0.0.3
 
 import * as shell from 'mshell'
-import { setTimeout } from 'qjs:os'
 const ICON_CHECKED = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 12 12"><path fill="currentColor" d="M9.765 3.205a.75.75 0 0 1 .03 1.06l-4.25 4.5a.75.75 0 0 1-1.075.015L2.22 6.53a.75.75 0 0 1 1.06-1.06l1.705 1.704l3.72-3.939a.75.75 0 0 1 1.06-.03"/></svg>`
 const ICON_EMPTY = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 12 12"></svg>`
 
@@ -21,10 +20,26 @@ const languages = {
         不常用: 'Uncommon',
         右键菜单清理: 'Context Menu Cleaner',
     },
+    'ja-JP': {
+        '合并 "用...打开"': '「プログラムから開く」をマージ',
+        '不合并使用 Code 打开': '「Code で聞く」をマージしない',
+        不合并在终端中打开: '「Windows ターミナルで聞く」をマージしない',
+        合并视图操作: 'ビュー操作をマージ',
+        合并不常用菜单: '他のメニューをマージ',
+        不合并使用: '「プログラムから開く」をマージしない',
+        打开方式: 'プログラムから開く',
+        视图操作: 'ビュー操作',
+        不常用: '他のメニュー',
+        右键菜单清理: 'コンテキスト メニュー クリーナー',
+    },
     'zh-CN': {},
 }
 
-const currentLang = shell.breeze.user_language() === 'zh-CN' ? 'zh-CN' : 'en-US'
+const currentLang = Object.keys(languages).includes(
+    shell.breeze.user_language(),
+)
+    ? shell.breeze.user_language()
+    : 'en-US'
 const t = (key) => {
     return languages[currentLang][key] || key
 }
@@ -116,14 +131,14 @@ on_plugin_menu['右键菜单清理 - Context Menu Cleaner'] = (menu) => {
             createToggleMenu(
                 submenu,
                 t('不合并使用 Code 打开'),
-                'merge.open_with_allow.code'
+                'merge.open_with_allow.code',
             )
             createToggleMenu(
                 submenu,
                 t('不合并在终端中打开'),
-                'merge.open_with_allow.terminal'
+                'merge.open_with_allow.terminal',
             )
-        }
+        },
     )
     createToggleMenu(menu, t('合并视图操作'), 'merge.view_operation')
     createToggleMenu(menu, t('合并不常用菜单'), 'merge.uncommon')
@@ -152,25 +167,33 @@ shell.menu_controller.add_menu_listener((ctx) => {
 
         if (read_config_key('merge.open_with')) {
             const ignore = []
-            if (read_config_key('merge.open_with_allow.code'))
-                ignore.push('通过 Code 打开')
+            const ignoreResid = []
+            if (read_config_key('merge.open_with_allow.code')) {
+                ignore.push('通过 Code 打开', 'Code で聞く')
+            }
 
-            if (read_config_key('merge.open_with_allow.terminal'))
-                ignore.push('在终端中打开')
+            if (read_config_key('merge.open_with_allow.terminal')) {
+                ignore.push(
+                    '在终端中打开',
+                    'Open in Terminal',
+                    'Windows Terminal here',
+                    'Windows Terminal here as administrator',
+                    'Windows ターミナルで聞く',
+                )
+            }
 
             mergeMenuItems(
                 ctx.menu.get_items().filter((menu) => {
                     const data = menu.data()
-                    const blacklist = [
-                        '在新窗口中打开',
-                        '在新标签页中打开',
-                        '打开',
-                        '打开方式',
+                    const blacklist = []
+                    const blacklistResid = [
+                        '51623@SHELL32.dll', // 打开
+                        '5393@SHELL32.dll', // 打开方式
+                        '8535@windows.storage.dll', // 在新标签页中打开
+                        '8533@windows.storage.dll', // 在新窗口中打开
                     ]
                     const whitelist = [
                         // common matches
-                        '打开',
-                        'open',
                         '使用',
                         '播放列表',
                         '播放队列',
@@ -179,16 +202,26 @@ shell.menu_controller.add_menu_listener((ctx) => {
                         'ida pro',
                     ]
                     const fullmatch = ['WizTree']
+                    const fullmatchResid = [
+                        // common matches
+                        '51623@SHELL32.dll', // 打开
+                    ]
 
                     if (ignore.includes(data.name)) return false
+                    if (ignoreResid.includes(data.name_resid)) return false
                     if (blacklist.includes(data.name)) return false
+                    if (blacklistResid.includes(data.name_resid)) return false
                     return (
                         whitelist.some((name) =>
-                            data.name?.toLowerCase().includes(name)
-                        ) || fullmatch.some((name) => data.name === name)
+                            data.name?.toLowerCase().includes(name),
+                        ) ||
+                        fullmatch.some((name) => data.name === name) ||
+                        fullmatchResid.some(
+                            (resid) => data.name_resid === resid,
+                        )
                     )
                 }),
-                t('打开方式')
+                t('打开方式'),
             )
         }
 
@@ -198,17 +231,26 @@ shell.menu_controller.add_menu_listener((ctx) => {
                     const data = menu.data()
                     const fullmatch = [
                         // zh-CN
-                        '查看',
                         '排序方式',
                         '分组依据',
                         // en-US
-                        'View',
                         'Sort by',
                         'Group by',
+                        // ja-JP
+                        '並べ替え',
+                        'グループで表示',
                     ]
-                    return fullmatch.some((name) => name === data.name)
+                    const fullmatchResid = [
+                        '31161@SHELL32.dll', // 查看
+                    ]
+                    return (
+                        fullmatch.some((name) => name === data.name) ||
+                        fullmatchResid.some(
+                            (resid) => data.name_resid === resid,
+                        )
+                    )
                 }),
-                t('视图操作')
+                t('视图操作'),
             )
         }
 
@@ -219,29 +261,35 @@ shell.menu_controller.add_menu_listener((ctx) => {
                     const fullmatch = [
                         // zh-CN
                         '自定义文件夹...',
-                        '授予访问权限',
                         '还原以前的版本',
-                        '包含到库中',
-                        '固定到“开始”',
                         '添加到收藏夹',
                         '共享',
                         // en-US
                         'Customize folder...',
                         'Restore previous versions',
-                        'Include in library',
-                        'Pin to Start',
                         'Add to favorites',
                         'Share',
                         'Send to',
-                        'Give access to',
+                        // ja-JP
+                        'このフォルダーのカスタマイズ...',
+                        '以前のバージョンの復元',
                     ]
-                    const whitelist = ['发送']
+                    const fullmatchResid = [
+                        '119@ntshrui.dll', // 授予访问权限
+                        '34609@SHELL32.dll', // 包含到库中
+                        '51622@SHELL32.dll', // 固定到“开始”
+                        '30328@SHELL32.dll', // 发送
+                    ]
+                    const whitelist = ['发送', '送る']
                     return (
-                        fullmatch.some((name) => name === data.name) ||
+                        fullmatch.some((name) => data.name === name) ||
+                        fullmatchResid.some(
+                            (resid) => data.name_resid === resid,
+                        ) ||
                         whitelist.some((name) => data.name?.includes(name))
                     )
                 }),
-                t('不常用')
+                t('不常用'),
             )
         }
 
@@ -261,7 +309,7 @@ shell.menu_controller.add_menu_listener((ctx) => {
         if (mergedMenus.length) {
             for (const menu of ctx.menu.get_items()) {
                 const dupname = mergedMenus.find(
-                    (v) => v.name === menu.data().name
+                    (v) => v.name === menu.data().name,
                 )
                 if (dupname) {
                     const orig_submenu = menu.data().submenu
@@ -288,7 +336,7 @@ shell.menu_controller.add_menu_listener((ctx) => {
                 {
                     type: 'spacer',
                 },
-                target
+                target,
             )
         }
     } catch (e) {
