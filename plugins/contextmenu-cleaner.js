@@ -199,7 +199,17 @@ shell.menu_controller.add_menu_listener((ctx) => {
                         '播放队列',
                         '编辑',
                         // specific softwares
+                        'edit with photos',
+                        'edit in notepad',
+                        'adobe bridge',
+                        'adobe acrobat',
+                        'jetbrains',
+                        'intellij',
                         'ida pro',
+                        'hhd hex editor neo',
+                        'x32dbg',
+                        'x64dbg',
+                        'mediainfo',
                     ]
                     const fullmatch = ['WizTree']
                     const fullmatchResid = [
@@ -261,6 +271,7 @@ shell.menu_controller.add_menu_listener((ctx) => {
                     const fullmatch = [
                         // zh-CN
                         '自定义文件夹...',
+                        '授予访问权限',
                         '还原以前的版本',
                         '添加到收藏夹',
                         '共享',
@@ -270,15 +281,19 @@ shell.menu_controller.add_menu_listener((ctx) => {
                         'Add to favorites',
                         'Share',
                         'Send to',
+                        'Give access to',
                         // ja-JP
                         'このフォルダーのカスタマイズ...',
                         '以前のバージョンの復元',
+                        'アクセスを許可する',
+                        'お気に入りに追加',
                     ]
                     const fullmatchResid = [
                         '119@ntshrui.dll', // 授予访问权限
                         '34609@SHELL32.dll', // 包含到库中
                         '51622@SHELL32.dll', // 固定到“开始”
                         '30328@SHELL32.dll', // 发送
+                        '51624@SHELL32.dll', // 添加到收藏夹
                     ]
                     const whitelist = ['发送', '送る']
                     return (
