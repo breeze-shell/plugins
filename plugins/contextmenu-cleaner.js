@@ -1,7 +1,7 @@
 // @name: 右键菜单清理 - Context Menu Cleaner
 // @description: 多功能、可配置的右键菜单清理工具 / A versatile and configurable context menu cleaner
 // @author: MicroBlock
-// @version: 0.0.3
+// @version: 0.0.4
 
 import * as shell from 'mshell'
 const ICON_CHECKED = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 12 12"><path fill="currentColor" d="M9.765 3.205a.75.75 0 0 1 .03 1.06l-4.25 4.5a.75.75 0 0 1-1.075.015L2.22 6.53a.75.75 0 0 1 1.06-1.06l1.705 1.704l3.72-3.939a.75.75 0 0 1 1.06-.03"/></svg>`
@@ -198,9 +198,9 @@ shell.menu_controller.add_menu_listener((ctx) => {
                         '播放列表',
                         '播放队列',
                         '编辑',
+                        'edit with',
+                        'edit in',
                         // specific softwares
-                        'edit with photos',
-                        'edit in notepad',
                         'adobe bridge',
                         'adobe acrobat',
                         'jetbrains',
