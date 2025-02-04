@@ -9,7 +9,7 @@ import * as shell from "mshell"
 const ICON_CHECKED = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 12 12"><path fill="currentColor" d="M9.765 3.205a.75.75 0 0 1 .03 1.06l-4.25 4.5a.75.75 0 0 1-1.075.015L2.22 6.53a.75.75 0 0 1 1.06-1.06l1.705 1.704l3.72-3.939a.75.75 0 0 1 1.06-.03"/></svg>`
 const ICON_EMPTY = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 12 12"></svg>`
 const CONFIG_FILE = "common-small-button.json"
-const PLUGIN_NAME = "常用功能小图标"
+const PLUGIN_NAME = "常用功能小图标 - Copy paste etc. in one line"
 const default_config = {
     remove_original: false,
     use_original_icon_if_exists: true,
