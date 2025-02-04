@@ -1,5 +1,5 @@
 // @name: 常用功能小图标 - Copy paste etc. in one line
-// @description: 将复制，剪切等常用功能按钮添加到右键菜单的第一行小图标
+// @description: 将复制，剪切等常用功能按钮添加到右键菜单的第一行小图标，需要本体版本 0.1.7+
 // @version: 0.0.1
 // @author: MicroBlock
 
