@@ -1,6 +1,6 @@
 // @name: 常用功能小图标 - Copy paste etc. in one line
-// @description: 将复制，剪切等常用功能按钮添加到右键菜单的第一行小图标，需要本体版本 0.1.7+
-// @version: 0.0.1
+// @description: 将复制，剪切等常用功能按钮添加到右键菜单的第一行小图标
+// @version: 0.0.2
 // @author: MicroBlock
 
 import * as shell from "mshell"
@@ -127,6 +127,19 @@ const icons = {
     <path fill="#E0DFDF" d="M4 1.5A1.5 1.5 0 0 1 5.5 0h3a1.5 1.5 0 1 1 0 3h-3A1.5 1.5 0 0 1 4 1.5ZM5.5 1a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1h-3Z"/>
     <path fill="#4CC2FF" d="M7 6.5A1.5 1.5 0 0 1 8.5 5h5A1.5 1.5 0 0 1 15 6.5v8a1.5 1.5 0 0 1-1.5 1.5h-5A1.5 1.5 0 0 1 7 14.5v-8ZM8.5 6a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5h5a.5.5 0 0 0 .5-.5v-8a.5.5 0 0 0-.5-.5h-5Z"/>
   </svg>
+  `,
+        rename: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 16 16">
+    <g clip-path="url(#a)">
+      <path stroke="#E0DFDF" d="M9 2.5H3A2.5 2.5 0 0 0 .5 5v6A2.5 2.5 0 0 0 3 13.5h6m3-11h1A2.5 2.5 0 0 1 15.5 5v6a2.5 2.5 0 0 1-2.5 2.5h-1"/>
+      <path stroke="#4CC2FF" stroke-linecap="round" d="M8.5.5h2m2 0h-2m-2 15h2m2 0h-2m0-15v15"/>
+      <path fill="#4CC2FF" fill-rule="evenodd" d="M5.5 4a.5.5 0 0 1 .455.292l2.75 6a.5.5 0 1 1-.91.416L7.127 9.25H3.873l-.668 1.458a.5.5 0 1 1-.91-.416l2.75-6A.501.501 0 0 1 5.5 4Zm0 1.7L4.331 8.25H6.67L5.5 5.7Z"/>
+    </g>
+    <defs>
+      <clipPath id="a">
+        <path fill="#fff" d="M0 0h16v16H0z"/>
+      </clipPath>
+    </defs>
+  </svg>
   `
     },
     light: {
@@ -156,6 +169,13 @@ const icons = {
     <path fill="#FAFAFA" d="M13.5 5.5h-5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1Z"/>
     <path fill="#0078D4" d="M7 6.5A1.5 1.5 0 0 1 8.5 5h5A1.5 1.5 0 0 1 15 6.5v8a1.5 1.5 0 0 1-1.5 1.5h-5A1.5 1.5 0 0 1 7 14.5v-8ZM8.5 6a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5h5a.5.5 0 0 0 .5-.5v-8a.5.5 0 0 0-.5-.5h-5Z"/>
   </svg>
+  `,
+        rename: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 16 16">
+    <path fill="#FAFAFA" d="M3 2.5h6v11H3A2.5 2.5 0 0 1 .5 11V5A2.5 2.5 0 0 1 3 2.5Zm10 0h-1v11h1a2.5 2.5 0 0 0 2.5-2.5V5A2.5 2.5 0 0 0 13 2.5Z"/>
+    <path stroke="#555" d="M9 2.5H3A2.5 2.5 0 0 0 .5 5v6A2.5 2.5 0 0 0 3 13.5h6m3-11h1A2.5 2.5 0 0 1 15.5 5v6a2.5 2.5 0 0 1-2.5 2.5h-1"/>
+    <path stroke="#0078D4" stroke-linecap="round" d="M8.5.5h2m2 0h-2m-2 15h2m2 0h-2m0-15v15"/>
+    <path fill="#0078D4" fill-rule="evenodd" d="M5.5 4a.5.5 0 0 1 .455.292l2.75 6a.5.5 0 1 1-.91.416L7.127 9.25H3.873l-.668 1.458a.5.5 0 1 1-.91-.416l2.75-6A.501.501 0 0 1 5.5 4Zm0 1.7L4.331 8.25H6.67L5.5 5.7Z"/>
+  </svg>
   `
     }
 }
@@ -182,6 +202,11 @@ shell.menu_controller.add_menu_listener(ctx => {
                 orig_resid: '33578@SHELL32.dll',
                 orig_name: ['粘贴']
             },
+            {
+                icon: 'rename',
+                orig_resid: '4164@SHELL32.dll',
+                orig_name: ['重命名']
+            }
         ]
 
         const remove_original = read_config_key('remove_original')
