@@ -1,6 +1,6 @@
 // @name: 常用功能小图标 - Copy paste etc. in one line
 // @description: 将复制，剪切等常用功能按钮添加到右键菜单的第一行小图标
-// @version: 0.0.2
+// @version: 0.0.3
 // @author: MicroBlock
 
 import * as shell from "mshell"
