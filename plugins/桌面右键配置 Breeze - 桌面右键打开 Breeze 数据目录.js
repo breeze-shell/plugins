@@ -1,7 +1,7 @@
 // @name: 桌面右键配置 Breeze
 // @description: 在桌面右键菜单添加“配置 Breeze”选项，点击后打开 Breeze 数据目录
 // @author: leafmoes
-// @version: 0.0.1
+// @version: 0.0.2
 
 import * as shell from "mshell";
 
@@ -33,7 +33,8 @@ shell.menu_controller.add_menu_listener((ctx) => {
             name: t(MENU_NAME),
             icon_svg:ICON_CHECKED,
             action:() => {
-                shell.subproc.run(`explorer.exe "${shell.breeze.data_directory().replaceAll('/', '\\')}"`);
+                shell.subproc.run_async(`explorer.exe "${shell.breeze.data_directory().replaceAll('/', '\\')}"`,()=>{})
+                ctx.menu.close()
             },
         },0);
     }
