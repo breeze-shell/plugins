@@ -13,7 +13,7 @@ const PLUGIN_NAME = "常用功能小图标"
 const default_config = {
     remove_original: false,
     use_original_icon_if_exists: true,
-    show_name: true,
+    show_name: false,
     show_icon: true
 }
 let config = {};
