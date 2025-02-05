@@ -33,8 +33,16 @@ shell.menu_controller.add_menu_listener((ctx) => {
             name: t(MENU_NAME),
             icon_svg:ICON_CHECKED,
             action:() => {
-                shell.subproc.run_async(`explorer.exe "${shell.breeze.data_directory().replaceAll('/', '\\')}"`,()=>{})
-                ctx.menu.close()
+                let dir = `${shell.breeze.data_directory().replaceAll("/", "\\")}`;
+                // 之前是这样的
+                // shell.subproc.run_async(`explorer.exe "${dir}"`,()=>{})
+                // 改成 open_async
+                // 这里有很大概率崩溃，没崩溃的话原地多试几次就崩了…
+                // shell.subproc.open_async(dir, null, ()=>{});
+                // 后面 加 sleep(100) 就没问题
+                // 同步调用没问题
+                shell.subproc.open(dir, null);
+                ctx.menu.close();
             },
         },0);
     }
