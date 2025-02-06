@@ -1,4 +1,4 @@
-// @name: Better terminal
+// @name: better-terminal
 // @description: 增加管理员方式打开终端
 // @author: Enlysure
 // @version: 0.0.1
