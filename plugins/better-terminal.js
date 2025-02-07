@@ -11,8 +11,8 @@ const ICON_EMPTY = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="3
 
 const languages = {
     'en-US': {
-        '以 Cmd 打开': 'Open as Cmd',
-        '以 PowerShell 打开': 'Open as PowerShell',
+        '以Cmd打开': 'Open as Cmd',
+        '以PS打开': 'Open as PowerShell',
         '使用新版 Terminal': 'Use new Terminal',
         '以管理员打开': 'Open as admin',
         '禁用原本的终端打开方式': 'Disable original terminal open method',
@@ -152,7 +152,7 @@ shell.menu_controller.add_menu_listener((ctx) => {
         function appendMenuButton(type, nameSuffix, command, targetIndex) {
             ctx.menu.append_menu_after({
                 type: "button",
-                name: t(`以 ${type} 打开`) + nameSuffix,
+                name: t(`以${type}打开`) + nameSuffix,
                 icon_svg: PS_ICON,
                 action: () => runCommand(command),
             }, targetIndex);
@@ -160,22 +160,22 @@ shell.menu_controller.add_menu_listener((ctx) => {
 
         const isAdmin = read_config_key('terminal.admin');
         const isWT = read_config_key('terminal.wt');
-        const nameSuffix = isAdmin ? (isWT ? " (admin wt)" : " (admin)") : (isWT ? " (wt)" : "");
+        const nameSuffix = isAdmin ? (isWT ? "(A T)" : "(A)") : (isWT ? "(T)" : "");
 
         if (isAdmin) {
             if (isWT) {
-                appendMenuButton("PowerShell", nameSuffix, `powershell -Command "Start-Process wt.exe -ArgumentList 'powershell -NoExit -Command \\"Set-Location ''${current_path}''\\"' -Verb RunAs"`, targetIndex);
+                appendMenuButton("PS", nameSuffix, `powershell -Command "Start-Process wt.exe -ArgumentList 'powershell -NoExit -Command \\"Set-Location ''${current_path}''\\"' -Verb RunAs"`, targetIndex);
                 appendMenuButton("Cmd", nameSuffix, `powershell -Command "Start-Process wt.exe -ArgumentList '-d \\"${current_path}\\" cmd.exe' -Verb RunAs"`, targetIndex);
             } else {
-                appendMenuButton("PowerShell", nameSuffix, `powershell -Command "Start-Process powershell -ArgumentList '-NoExit -Command \\"Set-Location ''${current_path}''\\"' -Verb RunAs"`, targetIndex);
+                appendMenuButton("PS", nameSuffix, `powershell -Command "Start-Process powershell -ArgumentList '-NoExit -Command \\"Set-Location ''${current_path}''\\"' -Verb RunAs"`, targetIndex);
                 appendMenuButton("Cmd", nameSuffix, `powershell -Command "Start-Process cmd -ArgumentList '/k cd /d ${current_path}' -Verb RunAs"`, targetIndex);
             }
         } else {
             if (isWT) {
-                appendMenuButton("PowerShell", nameSuffix, `wt.exe powershell -NoExit -Command "Set-Location '${current_path}'"`, targetIndex);
+                appendMenuButton("PS", nameSuffix, `wt.exe powershell -NoExit -Command "Set-Location '${current_path}'"`, targetIndex);
                 appendMenuButton("Cmd", nameSuffix, `wt.exe -d "${current_path}" cmd.exe`, targetIndex);
             } else {
-                appendMenuButton("PowerShell", nameSuffix, `Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '${current_path}'"`, targetIndex);
+                appendMenuButton("PS", nameSuffix, `Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '${current_path}'"`, targetIndex);
                 appendMenuButton("Cmd", nameSuffix, `powershell -Command "Start-Process cmd.exe -ArgumentList '/k','cd /d ${current_path}'"`, targetIndex);
             }
         }
