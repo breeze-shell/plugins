@@ -137,6 +137,10 @@ shell.menu_controller.add_menu_listener((ctx) => {
         if (targetIndex === 0) {
             targetIndex = items.findIndex((v) => v.data().name === '新建') + 1;
         }
+        if (targetIndex === 0) {
+            return;
+        }
+
 
         shell.println(current_path);
         const runCommand = async (command) => {
