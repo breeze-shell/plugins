@@ -1,6 +1,6 @@
 // @name: 常用功能小图标 - Copy paste etc. in one line
 // @description: 将复制，剪切等常用功能按钮添加到右键菜单的第一行小图标
-// @version: 0.0.3
+// @version: 0.0.4
 // @author: MicroBlock
 
 import * as shell from "mshell"
@@ -188,15 +188,15 @@ shell.menu_controller.add_menu_listener(ctx => {
             {
                 icon: 'copy',
                 orig_resid: '4162@SHELL32.dll',
-                orig_name: ['复制']
+                orig_name: ['复制', 'Copy']
             }, {
                 icon: 'cut',
                 orig_resid: '33576@SHELL32.dll',
-                orig_name: ['剪切']
+                orig_name: ['剪切', 'Cut']
             }, {
                 icon: 'delete',
                 orig_resid: '4163@SHELL32.dll',
-                orig_name: ['删除']
+                orig_name: ['删除', 'Delete']
             }, {
                 icon: 'paste',
                 orig_resid: '33578@SHELL32.dll',
@@ -205,7 +205,7 @@ shell.menu_controller.add_menu_listener(ctx => {
             {
                 icon: 'rename',
                 orig_resid: '4164@SHELL32.dll',
-                orig_name: ['重命名']
+                orig_name: ['重命名', 'Rename']
             }
         ]
 
