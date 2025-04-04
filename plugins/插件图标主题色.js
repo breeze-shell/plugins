@@ -1,6 +1,6 @@
 // @name: 插件图标主题色
 // @description: 让部分插件添加的图标染上系统主题色 / Colorize icons added by other plugins with accent color
-// @version: 0.0.1
+// @version: 0.0.2
 // @author: Lukoning
 
 import * as shell from "mshell"
@@ -11,7 +11,8 @@ const languages = {
     "en-US": {
         立即应用: "Apply now",
         主题色改变时自动应用: "Auto apply when accent color changes",
-        在此选择需要修改图标的插件: "Select the plugin whose icon you want to modify",
+        在此选择需要修改图标的插件: "Select the plugin whose icons you want to colorize",
+        "(高级)编辑需替换的颜色": "(Advanced) Edit the color you want to replace"
     },
     "ja-JP": {
         在此选择需要修改图标的插件: "ここでアイコンの変更が必要なプラグインを選択します",
@@ -45,6 +46,9 @@ const default_config = {
     oldColor: {
         accent: "",
         colorization: "",
+    },
+    advanced: {
+        plugins: {},
     },
 }
 let config = {};
@@ -83,6 +87,8 @@ const write_config = () => {
 }
 
 const write_config_key = (key, value) => {
+    read_config() //解决手动修改配置文件后写配置时，手动改的配置被缓存的旧配置覆盖的问题
+
     let obj = config
 
     const keys = key.split('.')
@@ -97,6 +103,8 @@ const write_config_key = (key, value) => {
 }
 
 on_plugin_menu[PLUGIN_NAME] = ((menu) => {
+    read_config();
+    const config_dir = shell.breeze.data_directory() + '/config/'
     const createToggleMenu = (menu, name, configKey, submenu) => {
         const menuItem = menu.append_menu({
             name,
@@ -116,11 +124,26 @@ on_plugin_menu[PLUGIN_NAME] = ((menu) => {
         return menuItem
     }
 
+    async function editColorToReplace(key="colorToReplace") {
+        if (key) {
+            write_config_key(`${key}.dark`, read_config_key(`${key}.dark`) ?? read_config_key("colorToReplace.dark"));
+            write_config_key(`${key}.light`, read_config_key(`${key}.light`) ?? read_config_key("colorToReplace.light"));
+        }
+        shell.subproc.run(`cmd /c ${config_dir+CONFIG_FILE}`);
+    }
+
     menu.append_menu({
         name: t("立即应用"),
         action() {applyNow(); menuctx.menu.close()}
     })
     createToggleMenu(menu, t("主题色改变时自动应用"), "autoApply")
+    menu.append_menu({
+        name: t("(高级)编辑需替换的颜色"),
+        action: ()=>{
+            menuctx.menu.close();
+            editColorToReplace();
+        }
+    })
     menu.append_spacer();
     menu.append_menu({
         name: t("在此选择需要修改图标的插件"),
@@ -129,9 +152,20 @@ on_plugin_menu[PLUGIN_NAME] = ((menu) => {
     const pluginFiles = shell.fs.readdir(scriptsDir);
     for (let i=0; i<pluginFiles.length; i++) {
         const nameWithExt = pluginFiles[i].replace(scriptsDir, "")
-        const name = nameWithExt.replace(".js", "")
+        , name = nameWithExt.replace(".js", "")
+        , nameConfig = name.replaceAll(".", "&#46");
         if (nameWithExt.substring(nameWithExt.lastIndexOf(".")+1)!="js" || name==PLUGIN_NAME) {continue}
-        createToggleMenu(menu, name, `patchList.${name.replaceAll(".", "&#46")}`)
+        createToggleMenu(menu, name, `patchList.${nameConfig}`,
+            (submenu)=>{
+                submenu.append_menu({
+                    name: t("(高级)编辑需替换的颜色"),
+                    action: ()=>{
+                        menuctx.menu.close();
+                        editColorToReplace(`advanced.plugins.${nameConfig}.colorToReplace`);
+                    }
+                })
+            }
+        )
     }
 })
 
@@ -195,15 +229,16 @@ function getSystemAccentColors() {
 function applyAccentColor(color) {
     const patchList = read_config_key("patchList")
     const patchListKeys = Object.keys(patchList)
-    let pluginFiles = new Array();
+    let namesConfig = new Array();
     for (let i=0; i<patchListKeys.length; i++) {
-        if (patchList[`${patchListKeys[i]}`]) {pluginFiles.push(patchListKeys[i].replaceAll("&#46", ".")+".js")}
+        if (patchList[`${patchListKeys[i]}`]) {namesConfig.push(patchListKeys[i])}
     }
-    if (pluginFiles.length == 0) {return}
-    for (let i=0; i<pluginFiles.length; i++) {
-        const file = scriptsDir + pluginFiles[i];
+    if (namesConfig.length == 0) {return}
+    for (let i=0; i<namesConfig.length; i++) {
+        const file = scriptsDir + namesConfig[i].replaceAll("&#46", ".") + ".js";
         const fileBackup = file+".accent-icons-backup";
-        let text = shell.fs.read(file), textBackup = "";
+        let text = "", textBackup = "";
+        if (shell.fs.exists(file)) {text = shell.fs.read(file)} else {continue;} 
         if (shell.fs.exists(fileBackup)) {
             textBackup = shell.fs.read(fileBackup);
             if (compareVersions(getVersionFromContent(text), getVersionFromContent(textBackup)) != 0) {
@@ -214,9 +249,10 @@ function applyAccentColor(color) {
             textBackup = text
             shell.fs.write(fileBackup, text);
         }
+        const key = `advanced.plugins.${namesConfig[i]}.colorToReplace`;
         shell.fs.write(file, textBackup
-            .replaceAll(read_config_key("colorToReplace.dark"), color.accent)
-            .replaceAll(read_config_key("colorToReplace.light"), color.accent)
+            .replaceAll(read_config_key(`${key}.dark`) ?? read_config_key("colorToReplace.dark"), color.accent)
+            .replaceAll(read_config_key(`${key}.light`) ?? read_config_key("colorToReplace.light"), color.accent)
         );
     }
 }
