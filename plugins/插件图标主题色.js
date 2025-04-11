@@ -1,6 +1,6 @@
 // @name: 插件图标主题色
 // @description: 让部分插件添加的图标染上系统主题色 / Colorize icons added by other plugins with accent color
-// @version: 0.0.2
+// @version: 0.0.3
 // @author: Lukoning
 
 import * as shell from "mshell"
@@ -173,7 +173,7 @@ on_plugin_menu[PLUGIN_NAME] = ((menu) => {
 
 const REG = {
     path: "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\DWM",
-    accent: "AccentColor",
+    accent: "AccentColor", //弃用。这个注册表值更新不及时（系统内表现为窗口标题栏和边框上显示的主题色不正确）
     colorization: "ColorizationColor"
 };
 
@@ -207,25 +207,6 @@ function getVersionFromContent(content) {
     return rawVersion
 }
 
-function getSystemAccentColors() {
-    function bgrToRgb(hex) {
-        return hex.slice(4, 6) + hex.slice(2, 4) + hex.slice(0, 2)
-    }
-    try {
-        const accentOut = shell.subproc.run(`reg query "${REG.path}" /v "${REG.accent}"`).out;
-        const colorizationOut = shell.subproc.run(`reg query "${REG.path}" /v "${REG.colorization}"`).out;
-        const accent = accentOut.substr(accentOut.lastIndexOf("0x")+4, 6);
-        const colorization = colorizationOut.substr(accentOut.lastIndexOf("0x")+4, 6);
-        return {
-            accent: `#${bgrToRgb(accent)}`,
-            colorization: `#${colorization}`
-        };
-    } catch (error) {
-        shell.println("获取注册表颜色失败:", error);
-        return null;
-    }
-}
-
 function applyAccentColor(color) {
     const patchList = read_config_key("patchList")
     const patchListKeys = Object.keys(patchList)
@@ -251,17 +232,34 @@ function applyAccentColor(color) {
         }
         const key = `advanced.plugins.${namesConfig[i]}.colorToReplace`;
         shell.fs.write(file, textBackup
-            .replaceAll(read_config_key(`${key}.dark`) ?? read_config_key("colorToReplace.dark"), color.accent)
-            .replaceAll(read_config_key(`${key}.light`) ?? read_config_key("colorToReplace.light"), color.accent)
+            .replaceAll(read_config_key(`${key}.dark`) ?? read_config_key("colorToReplace.dark"), color.colorization)
+            .replaceAll(read_config_key(`${key}.light`) ?? read_config_key("colorToReplace.light"), color.colorization)
         );
     }
 }
 
-function applyNow(isAuto=false) {
-    const color = getSystemAccentColors()
-    if (isAuto && color.accent == read_config_key("oldColor.accent")) {return}
-    write_config_key("oldColor.accent", color.accent)
-    applyAccentColor(color)
+async function applyNow(isAuto=false) {
+    function bgrToRgb(hex) {
+        return hex.slice(4, 6) + hex.slice(2, 4) + hex.slice(0, 2)
+    }
+    try {
+        shell.subproc.run_async(`reg query "${REG.path}" /v "${REG.colorization}"`, back=>{
+            const out = back.out
+            const colorization = out.substr(out.lastIndexOf("0x")+4, 6);
+            const color = {
+                //accent: `#${bgrToRgb(accent)}`,
+                colorization: `#${colorization}`
+            };
+            if (isAuto && color.colorization == read_config_key("oldColor.colorization")) {return}
+            write_config_key("oldColor.colorization", color.colorization)
+            applyAccentColor(color)
+        })
+        //const colorizationOut = shell.subproc.run_async(`reg query "${REG.path}" /v "${REG.colorization}"`).out;
+        //const colorization = colorizationOut.substr(colorizationOut.lastIndexOf("0x")+4, 6);
+    } catch (error) {
+        shell.println("获取注册表颜色失败:", error);
+        return null;
+    }
 }
 
 shell.menu_controller.add_menu_listener(ctx => {
