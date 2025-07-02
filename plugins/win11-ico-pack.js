@@ -1,7 +1,7 @@
 // @name: Windows 11 Icon Pack
 // @description: 给右键菜单换上 Windows 11 风格的图标 / Change the right-click menu to Windows 11 style icons
 // @author: Unknown
-// @version: 0.0.2
+// @version: 0.0.3
 
 import * as shell from "mshell"
 
@@ -1167,8 +1167,38 @@ const icons = {
     <path fill="#E0DFDF" d="M2.5 1A2.5 2.5 0 0 0 0 3.5v9A2.5 2.5 0 0 0 2.5 15h11a2.5 2.5 0 0 0 2.5-2.5v-7A2.5 2.5 0 0 0 13.5 3H8.25L7.5 2a2.5 2.5 0 0 0-2-1h-3ZM1 3.5A1.5 1.5 0 0 1 2.5 2h3a1.5 1.5 0 0 1 1.2.6l.583.777-.557.371A1.5 1.5 0 0 1 5.894 4H1v-.5ZM1 5h4.894a2.5 2.5 0 0 0 1.387-.42l.87-.58H13.5A1.5 1.5 0 0 1 15 5.5v7a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 12.5V5Z"/>
     <path fill="#4CC2FF" d="M10 4a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1v3h.5a.5.5 0 0 1 0 1H12v3.5a.5.5 0 0 1-1 0V13h-.5a.5.5 0 0 1 0-1h.5V9h-.5a.5.5 0 0 1 0-1h.5V7a1 1 0 0 1-1-1V4Zm2 0h-1v2h1V4Z"/>
   </svg>
-  `
+  `,
+
+    "Explorer": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h240l80 80h320q33 0 56.5 23.5T880-640v400q0 33-23.5 56.5T800-160H160Zm0-80h640v-400H447l-80-80H160v480Zm0 0v-480 480Z"/></svg>
+  `,
+    "TaskManager": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M240-280h240v-80H240v80Zm120-160h240v-80H360v80Zm120-160h240v-80H480v80ZM200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm0-560v560-560Z"/></svg>`
+    , "Execute": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M160-240v-480 520-40Zm0 80q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h240l80 80h320q33 0 56.5 23.5T880-640v200h-80v-200H447l-80-80H160v480h200v80H160ZM584-56 440-200l144-144 56 57-87 87 87 87-56 57Zm192 0-56-57 87-87-87-87 56-57 144 144L776-56Z"/></svg>`
+    , "ComputerManagement": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M280-400q17 0 28.5-11.5T320-440q0-17-11.5-28.5T280-480q-17 0-28.5 11.5T240-440q0 17 11.5 28.5T280-400Zm0-160q17 0 28.5-11.5T320-600q0-17-11.5-28.5T280-640q-17 0-28.5 11.5T240-600q0 17 11.5 28.5T280-560Zm80 160h360v-80H360v80Zm0-160h360v-80H360v80Zm-40 440v-80H160q-33 0-56.5-23.5T80-280v-480q0-33 23.5-56.5T160-840h640q33 0 56.5 23.5T880-760v480q0 33-23.5 56.5T800-200H640v80H320ZM160-280h640v-480H160v480Zm0 0v-480 480Z"/></svg>`
+    , "StorageManagement": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M120-160v-160h720v160H120Zm80-40h80v-80h-80v80Zm-80-440v-160h720v160H120Zm80-40h80v-80h-80v80Zm-80 280v-160h720v160H120Zm80-40h80v-80h-80v80Z"/></svg>`
+    , "ApplicationsAndFeatures": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M240-160q-33 0-56.5-23.5T160-240q0-33 23.5-56.5T240-320q33 0 56.5 23.5T320-240q0 33-23.5 56.5T240-160Zm0-240q-33 0-56.5-23.5T160-480q0-33 23.5-56.5T240-560q33 0 56.5 23.5T320-480q0 33-23.5 56.5T240-400Zm0-240q-33 0-56.5-23.5T160-720q0-33 23.5-56.5T240-800q33 0 56.5 23.5T320-720q0 33-23.5 56.5T240-640Zm240 0q-33 0-56.5-23.5T400-720q0-33 23.5-56.5T480-800q33 0 56.5 23.5T560-720q0 33-23.5 56.5T480-640Zm240 0q-33 0-56.5-23.5T640-720q0-33 23.5-56.5T720-800q33 0 56.5 23.5T800-720q0 33-23.5 56.5T720-640ZM480-400q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm40 240v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T863-380L643-160H520Zm300-263-37-37 37 37ZM580-220h38l121-122-18-19-19-18-122 121v38Zm141-141-19-18 37 37-18-19Z"/></svg>`
+    , "PowerManagement": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M200-280q-17 0-28.5-11.5T160-320v-80H80v-160h80v-80q0-17 11.5-28.5T200-680h640q17 0 28.5 11.5T880-640v320q0 17-11.5 28.5T840-280H200Zm40-80h280v-240H240v240Z"/></svg>`
+    , "System": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M440-280h80l12-60q12-5 22.5-10.5T576-364l58 18 40-68-46-40q2-14 2-26t-2-26l46-40-40-68-58 18q-11-8-21.5-13.5T532-620l-12-60h-80l-12 60q-12 5-22.5 10.5T384-596l-58-18-40 68 46 40q-2 14-2 26t2 26l-46 40 40 68 58-18q11 8 21.5 13.5T428-340l12 60Zm40-120q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400ZM200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm0-560v560-560Z"/></svg>`
+    , "EventsView": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-480H200v480Zm80-280v-80h400v80H280Zm0 160v-80h240v80H280Z"/></svg>`
+    , "NetworkConnections": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M160-40v-240h100v-80H160v-240h100v-80H160v-240h280v240H340v80h100v80h120v-80h280v240H560v-80H440v80H340v80h100v240H160Zm80-80h120v-80H240v80Zm0-320h120v-80H240v80Zm400 0h120v-80H640v80ZM240-760h120v-80H240v80Zm60-40Zm0 320Zm400 0ZM300-160Z"/></svg>`
+    , "DeviceManagement": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M480-540ZM80-160v-80h400v80H80Zm120-120q-33 0-56.5-23.5T120-360v-360q0-33 23.5-56.5T200-800h560q33 0 56.5 23.5T840-720H200v360h280v80H200Zm600 40v-320H640v320h160Zm-180 80q-25 0-42.5-17.5T560-220v-360q0-25 17.5-42.5T620-640h200q25 0 42.5 17.5T880-580v360q0 25-17.5 42.5T820-160H620Zm100-300q13 0 21.5-9t8.5-21q0-13-8.5-21.5T720-520q-12 0-21 8.5t-9 21.5q0 12 9 21t21 9Zm0 60Z"/></svg>`
+    , "PlayMedia": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="m380-300 280-180-280-180v360ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/></svg>`
+    , "PlaylistAdd": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M120-320v-80h280v80H120Zm0-160v-80h440v80H120Zm0-160v-80h440v80H120Zm520 480v-160H480v-80h160v-160h80v160h160v80H720v160h-80Z"/></svg>`
+    , "Edit": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M200-200h57l391-391-57-57-391 391v57Zm-80 80v-170l528-527q12-11 26.5-17t30.5-6q16 0 31 6t26 18l55 56q12 11 17.5 26t5.5 30q0 16-5.5 30.5T817-647L290-120H120Zm640-584-56-56 56 56Zm-141 85-28-29 57 57-29-28Z"/></svg>`
+    , "Print": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M640-640v-120H320v120h-80v-200h480v200h-80Zm-480 80h640-640Zm560 100q17 0 28.5-11.5T760-500q0-17-11.5-28.5T720-540q-17 0-28.5 11.5T680-500q0 17 11.5 28.5T720-460Zm-80 260v-160H320v160h320Zm80 80H240v-160H80v-240q0-51 35-85.5t85-34.5h560q51 0 85.5 34.5T880-520v240H720v160Zm80-240v-160q0-17-11.5-28.5T760-560H200q-17 0-28.5 11.5T160-520v160h80v-80h480v80h80Z"/></svg>`
+    , "3D Print": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M440-181 240-296q-19-11-29.5-29T200-365v-230q0-22 10.5-40t29.5-29l200-115q19-11 40-11t40 11l200 115q19 11 29.5 29t10.5 40v230q0 22-10.5 40T720-296L520-181q-19 11-40 11t-40-11Zm0-92v-184l-160-93v185l160 92Zm80 0 160-92v-185l-160 93v184ZM80-680v-120q0-33 23.5-56.5T160-880h120v80H160v120H80ZM280-80H160q-33 0-56.5-23.5T80-160v-120h80v120h120v80Zm400 0v-80h120v-120h80v120q0 33-23.5 56.5T800-80H680Zm120-600v-120H680v-80h120q33 0 56.5 23.5T880-800v120h-80ZM480-526l158-93-158-91-158 91 158 93Zm0 45Zm0-45Zm40 69Zm-80 0Z"/></svg>`
+    , "Rotate Right": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M522-80v-82q34-5 66.5-18t61.5-34l56 58q-42 32-88 51.5T522-80Zm-80 0Q304-98 213-199.5T122-438q0-75 28.5-140.5t77-114q48.5-48.5 114-77T482-798h6l-62-62 56-58 160 160-160 160-56-56 64-64h-8q-117 0-198.5 81.5T202-438q0 104 68 182.5T442-162v82Zm322-134-58-56q21-29 34-61.5t18-66.5h82q-5 50-24.5 96T764-214Zm76-264h-82q-5-34-18-66.5T706-606l58-56q32 39 51 86t25 98Z"/></svg>`
+    , "Rotate Left": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M440-80q-50-5-96-24.5T256-156l56-58q29 21 61.5 34t66.5 18v82Zm80 0v-82q104-15 172-93.5T760-438q0-117-81.5-198.5T480-718h-8l64 64-56 56-160-160 160-160 56 58-62 62h6q75 0 140.5 28.5t114 77q48.5 48.5 77 114T840-438q0 137-91 238.5T520-80ZM198-214q-32-42-51.5-88T122-398h82q5 34 18 66.5t34 61.5l-58 56Zm-76-264q6-51 25-98t51-86l58 56q-21 29-34 61.5T204-478h-82Z"/></svg>`
+    , "File Location": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="m156-100-56-56 124-124H120v-80h240v240h-80v-104L156-100Zm648 0L680-224v104h-80v-240h240v80H736l124 124-56 56ZM120-600v-80h104L100-804l56-56 124 124v-104h80v240H120Zm480 0v-240h80v104l124-124 56 56-124 124h104v80H600ZM480-400q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Z"/></svg>`
+    , "Size": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M120-120v-240h80v104l124-124 56 56-124 124h104v80H120Zm480 0v-80h104L580-324l56-56 124 124v-104h80v240H600ZM324-580 200-704v104h-80v-240h240v80H256l124 124-56 56Zm312 0-56-56 124-124H600v-80h240v240h-80v-104L636-580ZM480-400q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Z"/></svg>`
+    , "ShutDown": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-84 31.5-156.5T197-763l56 56q-44 44-68.5 102T160-480q0 134 93 227t227 93q134 0 227-93t93-227q0-67-24.5-125T707-707l56-56q54 54 85.5 126.5T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm-40-360v-440h80v440h-80Z"/></svg>`
+    , "Move": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M480-80 310-250l57-57 73 73v-166h80v165l72-73 58 58L480-80ZM250-310 80-480l169-169 57 57-72 72h166v80H235l73 72-58 58Zm460 0-57-57 73-73H560v-80h165l-73-72 58-58 170 170-170 170ZM440-560v-166l-73 73-57-57 170-170 170 170-57 57-73-73v166h-80Z"/></svg>`
+    , "Terminal": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-400H160v400Zm140-40-56-56 103-104-104-104 57-56 160 160-160 160Zm180 0v-80h240v80H480Z"/></svg>`
+    , "Info": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M440-280h80v-240h-80v240Zm40-320q17 0 28.5-11.5T520-640q0-17-11.5-28.5T480-680q-17 0-28.5 11.5T440-640q0 17 11.5 28.5T480-600Zm0 520q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/></svg>`
+    , "Sound": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M400-120q-66 0-113-47t-47-113q0-66 47-113t113-47q23 0 42.5 5.5T480-418v-422h240v160H560v400q0 66-47 113t-113 47Z"/></svg>`
+    , "Mobility Center": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M756-120 537-339l84-84 219 219-84 84Zm-552 0-84-84 276-276-68-68-28 28-51-51v82l-28 28-121-121 28-28h82l-50-50 142-142q20-20 43-29t47-9q24 0 47 9t43 29l-92 92 50 50-28 28 68 68 90-90q-4-11-6.5-23t-2.5-24q0-59 40.5-99.5T701-841q15 0 28.5 3t27.5 9l-99 99 72 72 99-99q7 14 9.5 27.5T841-701q0 59-40.5 99.5T701-561q-12 0-24-2t-23-7L204-120Z"/></svg>`
+    , "Defender": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M480-80q-139-35-229.5-159.5T160-516v-244l320-120 320 120v244q0 152-90.5 276.5T480-80Zm0-84q97-30 162-118.5T718-480H480v-315l-240 90v207q0 7 2 18h238v316Z"/></svg>`
   },
+
   "light": {
     "addressbar.desktop": `<svg viewBox="0 0 12 13" fill="none" xmlns="http://www.w3.org/2000/svg">
   <path d="M2 0C0.89543 0 0 0.895431 0 2V7.99729C0 9.10186 0.89543 9.99729 2 9.99729H4.005V11.008L2.50598 11.008C2.22984 11.008 2.00598 11.2319 2.00599 11.508C2.00599 11.7841 2.22985 12.008 2.50599 12.008L9.50213 12.0079C9.77827 12.0079 10.0021 11.7841 10.0021 11.5079C10.0021 11.2318 9.77826 11.0079 9.50212 11.0079L8.00293 11.0079V9.99729H10C11.1046 9.99729 12 9.10186 12 7.99729V2C12 0.89543 11.1046 0 10 0H2ZM7.00293 9.99729V11.008L5.005 11.008V9.99729H7.00293ZM1 2C1 1.44772 1.44772 1 2 1H10C10.5523 1 11 1.44772 11 2V7.99729C11 8.54957 10.5523 8.99729 10 8.99729H2C1.44772 8.99729 1 8.54957 1 7.99729V2Z" fill="black" fill-opacity="0.6063"/>
@@ -2195,58 +2225,518 @@ const icons = {
     <path fill="#555" d="M2.5 1A2.5 2.5 0 0 0 0 3.5v9A2.5 2.5 0 0 0 2.5 15h11a2.5 2.5 0 0 0 2.5-2.5v-7A2.5 2.5 0 0 0 13.5 3H8.25L7.5 2a2.5 2.5 0 0 0-2-1h-3ZM1 3.5A1.5 1.5 0 0 1 2.5 2h3a1.5 1.5 0 0 1 1.2.6l.583.777-.557.371A1.5 1.5 0 0 1 5.894 4H1v-.5ZM1 5h4.894a2.5 2.5 0 0 0 1.387-.42l.87-.58H13.5A1.5 1.5 0 0 1 15 5.5v7a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 12.5V5Z"/>
     <path fill="#0078D4" d="M10 4a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1v3h.5a.5.5 0 0 1 0 1H12v3.5a.5.5 0 0 1-1 0V13h-.5a.5.5 0 0 1 0-1h.5V9h-.5a.5.5 0 0 1 0-1h.5V7a1 1 0 0 1-1-1V4Zm2 0h-1v2h1V4Z"/>
   </svg>
-  `
+  `,
+    "Explorer": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h240l80 80h320q33 0 56.5 23.5T880-640v400q0 33-23.5 56.5T800-160H160Zm0-80h640v-400H447l-80-80H160v480Zm0 0v-480 480Z"/></svg>`,
+    "TaskManager": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M240-280h240v-80H240v80Zm120-160h240v-80H360v80Zm120-160h240v-80H480v80ZM200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm0-560v560-560Z"/></svg>`
+    , "Execute": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M160-240v-480 520-40Zm0 80q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h240l80 80h320q33 0 56.5 23.5T880-640v200h-80v-200H447l-80-80H160v480h200v80H160ZM584-56 440-200l144-144 56 57-87 87 87 87-56 57Zm192 0-56-57 87-87-87-87 56-57 144 144L776-56Z"/></svg>`
+    , "ComputerManagement": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M280-400q17 0 28.5-11.5T320-440q0-17-11.5-28.5T280-480q-17 0-28.5 11.5T240-440q0 17 11.5 28.5T280-400Zm0-160q17 0 28.5-11.5T320-600q0-17-11.5-28.5T280-640q-17 0-28.5 11.5T240-600q0 17 11.5 28.5T280-560Zm80 160h360v-80H360v80Zm0-160h360v-80H360v80Zm-40 440v-80H160q-33 0-56.5-23.5T80-280v-480q0-33 23.5-56.5T160-840h640q33 0 56.5 23.5T880-760v480q0 33-23.5 56.5T800-200H640v80H320ZM160-280h640v-480H160v480Zm0 0v-480 480Z"/></svg>`
+    , "StorageManagement": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M120-160v-160h720v160H120Zm80-40h80v-80h-80v80Zm-80-440v-160h720v160H120Zm80-40h80v-80h-80v80Zm-80 280v-160h720v160H120Zm80-40h80v-80h-80v80Z"/></svg>`
+    , "ApplicationsAndFeatures": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M240-160q-33 0-56.5-23.5T160-240q0-33 23.5-56.5T240-320q33 0 56.5 23.5T320-240q0 33-23.5 56.5T240-160Zm0-240q-33 0-56.5-23.5T160-480q0-33 23.5-56.5T240-560q33 0 56.5 23.5T320-480q0 33-23.5 56.5T240-400Zm0-240q-33 0-56.5-23.5T160-720q0-33 23.5-56.5T240-800q33 0 56.5 23.5T320-720q0 33-23.5 56.5T240-640Zm240 0q-33 0-56.5-23.5T400-720q0-33 23.5-56.5T480-800q33 0 56.5 23.5T560-720q0 33-23.5 56.5T480-640Zm240 0q-33 0-56.5-23.5T640-720q0-33 23.5-56.5T720-800q33 0 56.5 23.5T800-720q0 33-23.5 56.5T720-640ZM480-400q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm40 240v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T863-380L643-160H520Zm300-263-37-37 37 37ZM580-220h38l121-122-18-19-19-18-122 121v38Zm141-141-19-18 37 37-18-19Z"/></svg>`
+    , "PowerManagement": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M200-280q-17 0-28.5-11.5T160-320v-80H80v-160h80v-80q0-17 11.5-28.5T200-680h640q17 0 28.5 11.5T880-640v320q0 17-11.5 28.5T840-280H200Zm40-80h280v-240H240v240Z"/></svg>`
+    , "System": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M440-280h80l12-60q12-5 22.5-10.5T576-364l58 18 40-68-46-40q2-14 2-26t-2-26l46-40-40-68-58 18q-11-8-21.5-13.5T532-620l-12-60h-80l-12 60q-12 5-22.5 10.5T384-596l-58-18-40 68 46 40q-2 14-2 26t2 26l-46 40 40 68 58-18q11 8 21.5 13.5T428-340l12 60Zm40-120q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400ZM200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm0-560v560-560Z"/></svg>`
+    , "EventsView": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-480H200v480Zm80-280v-80h400v80H280Zm0 160v-80h240v80H280Z"/></svg>`
+    , "NetworkConnections": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M160-40v-240h100v-80H160v-240h100v-80H160v-240h280v240H340v80h100v80h120v-80h280v240H560v-80H440v80H340v80h100v240H160Zm80-80h120v-80H240v80Zm0-320h120v-80H240v80Zm400 0h120v-80H640v80ZM240-760h120v-80H240v80Zm60-40Zm0 320Zm400 0ZM300-160Z"/></svg>`
+    , "DeviceManagement": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M480-540ZM80-160v-80h400v80H80Zm120-120q-33 0-56.5-23.5T120-360v-360q0-33 23.5-56.5T200-800h560q33 0 56.5 23.5T840-720H200v360h280v80H200Zm600 40v-320H640v320h160Zm-180 80q-25 0-42.5-17.5T560-220v-360q0-25 17.5-42.5T620-640h200q25 0 42.5 17.5T880-580v360q0 25-17.5 42.5T820-160H620Zm100-300q13 0 21.5-9t8.5-21q0-13-8.5-21.5T720-520q-12 0-21 8.5t-9 21.5q0 12 9 21t21 9Zm0 60Z"/></svg>`
+    , "PlayMedia": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="m380-300 280-180-280-180v360ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/></svg>`
+    , "PlaylistAdd": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M120-320v-80h280v80H120Zm0-160v-80h440v80H120Zm0-160v-80h440v80H120Zm520 480v-160H480v-80h160v-160h80v160h160v80H720v160h-80Z"/></svg>`
+    , "Edit": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M200-200h57l391-391-57-57-391 391v57Zm-80 80v-170l528-527q12-11 26.5-17t30.5-6q16 0 31 6t26 18l55 56q12 11 17.5 26t5.5 30q0 16-5.5 30.5T817-647L290-120H120Zm640-584-56-56 56 56Zm-141 85-28-29 57 57-29-28Z"/></svg>`
+    , "Print": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M640-640v-120H320v120h-80v-200h480v200h-80Zm-480 80h640-640Zm560 100q17 0 28.5-11.5T760-500q0-17-11.5-28.5T720-540q-17 0-28.5 11.5T680-500q0 17 11.5 28.5T720-460Zm-80 260v-160H320v160h320Zm80 80H240v-160H80v-240q0-51 35-85.5t85-34.5h560q51 0 85.5 34.5T880-520v240H720v160Zm80-240v-160q0-17-11.5-28.5T760-560H200q-17 0-28.5 11.5T160-520v160h80v-80h480v80h80Z"/></svg>`
+    , "3D Print": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M440-181 240-296q-19-11-29.5-29T200-365v-230q0-22 10.5-40t29.5-29l200-115q19-11 40-11t40 11l200 115q19 11 29.5 29t10.5 40v230q0 22-10.5 40T720-296L520-181q-19 11-40 11t-40-11Zm0-92v-184l-160-93v185l160 92Zm80 0 160-92v-185l-160 93v184ZM80-680v-120q0-33 23.5-56.5T160-880h120v80H160v120H80ZM280-80H160q-33 0-56.5-23.5T80-160v-120h80v120h120v80Zm400 0v-80h120v-120h80v120q0 33-23.5 56.5T800-80H680Zm120-600v-120H680v-80h120q33 0 56.5 23.5T880-800v120h-80ZM480-526l158-93-158-91-158 91 158 93Zm0 45Zm0-45Zm40 69Zm-80 0Z"/></svg>`
+    , "Rotate Right": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M522-80v-82q34-5 66.5-18t61.5-34l56 58q-42 32-88 51.5T522-80Zm-80 0Q304-98 213-199.5T122-438q0-75 28.5-140.5t77-114q48.5-48.5 114-77T482-798h6l-62-62 56-58 160 160-160 160-56-56 64-64h-8q-117 0-198.5 81.5T202-438q0 104 68 182.5T442-162v82Zm322-134-58-56q21-29 34-61.5t18-66.5h82q-5 50-24.5 96T764-214Zm76-264h-82q-5-34-18-66.5T706-606l58-56q32 39 51 86t25 98Z"/></svg>`
+    , "Rotate Left": `<svg xmlns="http://www.w3.org/2000/svg" height="30px" viewBox="0 -960 960 960" width="30px" fill="#e3e3e3"><path d="M440-80q-50-5-96-24.5T256-156l56-58q29 21 61.5 34t66.5 18v82Zm80 0v-82q104-15 172-93.5T760-438q0-117-81.5-198.5T480-718h-8l64 64-56 56-160-160 160-160 56 58-62 62h6q75 0 140.5 28.5t114 77q48.5 48.5 77 114T840-438q0 137-91 238.5T520-80ZM198-214q-32-42-51.5-88T122-398h82q5 34 18 66.5t34 61.5l-58 56Zm-76-264q6-51 25-98t51-86l58 56q-21 29-34 61.5T204-478h-82Z"/></svg>`
+    , "File Location": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="m156-100-56-56 124-124H120v-80h240v240h-80v-104L156-100Zm648 0L680-224v104h-80v-240h240v80H736l124 124-56 56ZM120-600v-80h104L100-804l56-56 124 124v-104h80v240H120Zm480 0v-240h80v104l124-124 56 56-124 124h104v80H600ZM480-400q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Z"/></svg>`
+    , "Size": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M120-120v-240h80v104l124-124 56 56-124 124h104v80H120Zm480 0v-80h104L580-324l56-56 124 124v-104h80v240H600ZM324-580 200-704v104h-80v-240h240v80H256l124 124-56 56Zm312 0-56-56 124-124H600v-80h240v240h-80v-104L636-580ZM480-400q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Z"/></svg>`
+    , "ShutDown": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-84 31.5-156.5T197-763l56 56q-44 44-68.5 102T160-480q0 134 93 227t227 93q134 0 227-93t93-227q0-67-24.5-125T707-707l56-56q54 54 85.5 126.5T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm-40-360v-440h80v440h-80Z"/></svg>`
+    , "Move": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M480-80 310-250l57-57 73 73v-166h80v165l72-73 58 58L480-80ZM250-310 80-480l169-169 57 57-72 72h166v80H235l73 72-58 58Zm460 0-57-57 73-73H560v-80h165l-73-72 58-58 170 170-170 170ZM440-560v-166l-73 73-57-57 170-170 170 170-57 57-73-73v166h-80Z"/></svg>`
+    , "Terminal": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-400H160v400Zm140-40-56-56 103-104-104-104 57-56 160 160-160 160Zm180 0v-80h240v80H480Z"/></svg>`
+    , "Info": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M440-280h80v-240h-80v240Zm40-320q17 0 28.5-11.5T520-640q0-17-11.5-28.5T480-680q-17 0-28.5 11.5T440-640q0 17 11.5 28.5T480-600Zm0 520q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/></svg>`
+    , "Sound": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M400-120q-66 0-113-47t-47-113q0-66 47-113t113-47q23 0 42.5 5.5T480-418v-422h240v160H560v400q0 66-47 113t-113 47Z"/></svg>`
+    , "Mobility Center": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M756-120 537-339l84-84 219 219-84 84Zm-552 0-84-84 276-276-68-68-28 28-51-51v82l-28 28-121-121 28-28h82l-50-50 142-142q20-20 43-29t47-9q24 0 47 9t43 29l-92 92 50 50-28 28 68 68 90-90q-4-11-6.5-23t-2.5-24q0-59 40.5-99.5T701-841q15 0 28.5 3t27.5 9l-99 99 72 72 99-99q7 14 9.5 27.5T841-701q0 59-40.5 99.5T701-561q-12 0-24-2t-23-7L204-120Z"/></svg>`
+    , "Defender": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M480-80q-139-35-229.5-159.5T160-516v-244l320-120 320 120v244q0 152-90.5 276.5T480-80Zm0-84q97-30 162-118.5T718-480H480v-315l-240 90v207q0 7 2 18h238v316Z"/></svg>`
   }
 }
 
-const icon_map_name = {
-  "windows.newitem": ["4167@SHELL32.dll", "16904@SHELL32.dll"],
-  "windows.iconsize.content": ["50275@ExplorerFrame.dll"],
-  "windows.properties": ["16529@SHELL32.dll"],
-  "SortBy": ["排序方式"],
-  "windows.groupbycolumn": ["37478@SHELL32.dll"],
-  "windows.paste": ["33578@SHELL32.dll"],
-  "windows.cut": ["33576@SHELL32.dll"],
-  "windows.copy": ["4162@SHELL32.dll"],
-  "windows.ribbondelete": ["4163@SHELL32.dll"],
-  "windows.rename": ["4164@SHELL32.dll"],
-  "windows.refresh": ["刷新", "Refresh"],
-  "windows.shortcut.opencontaining": ["创建快捷方式"],
-  "windows.openspotlight": ["12866@SHELL32.dll"],
-  "windows.opennewtab": ["8535@windows.storage.dll"],
-  "windows.opennewwindow": ["8533@windows.storage.dll"],
-  "windows.powershell.run": ["在终端中打开"],
-  "windows.pintohome": ["51393@SHELL32.dll"],
-  "PinToStartScreen": ["51622@SHELL32.dll"],
-  "windows.addmediaserver": ["34609@SHELL32.dll"],
-  "windows.quickaccess": ["38341@SHELL32.dll"],
-  "windows.copyaspath": ["30344@SHELL32.dll"],
-  "windows.pasteshortcut": ["复制为快捷方式"],
-  "windows.folderoptions": ["自定义文件夹..."],
-  "windows.openwith": ["9032@SHELL32.dll"],
-  "Windows.ModernShare": ["共享"]
-};
+const deferred = (func) => {
+  if (typeof func !== 'function') {
+    throw new Error('Deferred function must be a function');
+  }
+
+  let res;
+  return () => {
+    if (res === undefined) {
+      res = func();
+    }
+    return res;
+  }
+}
+
+const icon_map_buttons = deferred(() => [
+  {
+    icon: "Rotate Right",
+    resid: "37628@SHELL32.dll",
+    name: ["Повернуть вправо", "Rotate right"]
+  },
+  {
+    icon: "windows.navpane",
+    resid: "2717974794@explorerframe.dll",
+    name: ["Панел", "Panel"]
+  },
+  {
+    icon: "Rotate Left",
+    resid: "37626@SHELL32.dll",
+    name: ["Повернуть влево", "Rotate left"]
+  },
+  {
+    icon: "Size",
+    resid: "8994@SHELL32.dll",
+    name: ["Размер", "Size"]
+  },
+  {
+    icon: "File Location",
+    resid: ["1049@SHELL32.dll", "1056@SHELL32.dll"],
+    name: ["Расположение файла", "Открыть расположение папки", "Расположить", "Фокус", "File location", "Open folder location", "Focus"]
+  },
+  {
+    icon: "3D Print",
+    resid: [],
+    name: "3D Print"
+  },
+  {
+    icon: "Edit",
+    resid: ["8532@windows.storage.dll"],
+    name: ["Изменить", "Редактивровать", "Настройка", "Edit", "Setting"]
+  },
+  {
+    icon: "Mobility Center",
+    resid: "10943@twinui.dll",
+    name: ["Центр мобильности", "Mobility center"]
+  },
+  {
+    icon: "PlayMedia",
+    resid: [],
+    name: ["Воспроизведение с помощью Медиаплеера", "Воспроизвести с помощью проигрывателя Windows Media"]
+  },
+  {
+    icon: "PlaylistAdd",
+    resid: [],
+    name: ["Добавить в Медиаплеер очередь воспроизведения", "Добавить в список воспроизведения проигрывателя Windows Media"],
+  },
+  {
+    icon: "ComputerManagement",
+    resid: ["10934@twinui.dll", "8570@appresolver.dll"],
+    name: ["Управление компьютером", "Computer management"]
+  },
+  {
+    icon: "StorageManagement",
+    resid: "10933@twinui.dll",
+    name: ["Управление дисками", "Storage management"]
+  },
+  {
+    icon: "ApplicationsAndFeatures",
+    resid: "10927@twinui.dll",
+    name: ["Приложения и возможности", "Applicaions"]
+  },
+  {
+    icon: "PowerManagement",
+    resid: "10929@twinui.dll",
+    name: ["Управление электропитанием", "Электропитание", "Power"]
+  },
+  {
+    icon: "System",
+    resid: "10931@twinui.dll",
+    name: ["Система", "System"]
+  },
+  {
+    icon: "EventsView",
+    resid: "10930@twinui.dll",
+    name: ["Просмотр событий", "Events view"]
+  },
+  {
+    icon: "NetworkConnections",
+    resid: "10928@twinui.dll",
+    name: ["Сетевые подключения", "Network connections"]
+  },
+  {
+    icon: "Move",
+    resid: "29714@SHELL32.dll",
+    name: ["Переместить", "Move"]
+  },
+  {
+    icon: "DeviceManagement",
+    resid: "10932@twinui.dll",
+    name: ["Диспетчер устройств", "Device management"]
+  },
+  {
+    icon: "TaskManager",
+    resid: "10937@twinui.dll",
+    name: ["Диспетчер задач", "Task manager"]
+  },
+  {
+    icon: "SearchAdvancedOptions",
+    resid: "10940@twinui.dll",
+    name: ["Найти", "Поиск", "Find", "Search"]
+  },
+  {
+    icon: "Execute",
+    resid: "10941@twinui.dll",
+    name: ["Выполнить", "Execute"]
+  },
+  {
+    icon: "Explorer",
+    resid: "8518@windows.storage.dll",
+    name: ["Проводник", "Explorer"]
+  },
+  {
+    icon: "Info",
+    resid: [],
+    name: ["Правка", "Info"]
+  },
+  {
+    icon: "windows.addnetworklocation",
+    resid: ["12363@SHELL32.dll"],
+    name: ["Добавить новый элемент в сетевое окружение", "Add netowrk location"]
+  },
+  {
+    icon: "windows.mapnetworkdrive",
+    resid: [],
+    name: ["Подключить сетевой диск", "Map network drive"]
+  },
+  {
+    icon: "windows.disconnectnetworkdrive",
+    resid: [],
+    name: ["Отключить сетевой диск", "Disconnet network drive"]
+  },
+  {
+    icon: "windows.diskformat",
+    resid: [],
+    name: ["Форматировать", "Format"]
+  },
+  {
+    icon: "windows.recyclebin.empty",
+    resid: ["10580@SHELL32.dll", "50015@explorerframe.dll"],
+    name: ["Очистить корзину", "Clear"]
+  },
+  {
+    icon: "windows.openinnewwindow",
+    resid: "8533@windows.storage.dll",
+    name: ["Открыть в новом окне", "Open in new window"]
+  },
+  {
+    icon: "windows.groupbycolumn",
+    resid: [],
+    name: ["Группировка", "Group"]
+  },
+  {
+    icon: "windows.expand",
+    resid: ["37606@SHELL32.dll", "8920@twinui.dll"],
+    name: ["Развернуть", "Отобразить", "Показать", "Показывать", "Show", "Expand"]
+  },
+  {
+    icon: "windows.expandall",
+    resid: ["37600@SHELL32.dll"],
+    name: ["Развернуть все", "Отобразить все", "Show All", "Expand all"],
+  },
+  {
+    icon: "windows.collapse",
+    name: ["Свернуть", "Не отображать", "Не показывать", "Скрывать", "Hide", "Collapse"],
+  },
+  {
+    icon: "windows.collapseall",
+    name: ["Свернуть все", "Hide all", "Collapse all"],
+  },
+  {
+    icon: "windows.setdesktopwallpaper",
+    resid: "433@stobject.dll",
+    name: ["Сделать фоновым изображением рабочего стола", "Set desktop wallpaper"]
+  },
+  {
+    icon: "windows.newitem",
+    resid: ["12370@SHELL32.dll", "30331@SHELL32.dll", "1048786@SHELL32.dll"],
+    name: ["Создать", "Create", "New"]
+  },
+  {
+    icon: "windows.iconsize.content",
+    resid: "50275@explorerframe.dll",
+    name: ["Содержание", "Content"]
+  },
+  {
+    icon: "windows.properties",
+    resid: ["1245395@SHELL32.dll"],
+    name: ["Исправление проблем с совместимостью", "Исправить", "Properties", "Repair"]
+  },
+  {
+    icon: "windows.folderoptions",
+    resid: ["16550@SHELL32.dll", "10938@twinui.dll", "37475@SHELL32.dll"],
+    name: ["Параметры", "Свойства", "Options", "Parameters"]
+  },
+  {
+    icon: "Windows.Zip.Action",
+    resid: [],
+    name: ["Добавить в архив", "Add into archive"]
+  },
+  {
+    icon: "SortBy",
+    resid: [],
+    name: ["Cортировка", "Sort"]
+  },
+  {
+    icon: "addressbar.desktop",
+    resid: "13156@explorerframe.dll",
+    name: ["Рабочий стол", "Desktop"]
+  },
+  {
+    icon: "windows.openfolder",
+    resid: ["8556@SHELL32.dll", "8566@appresolver.dll", "8523@SHELL32.dll"],
+    name: ["Открыть", "Open"]
+  },
+  {
+    icon: "windows.openwith",
+    resid: ["5392@SHELL32.dll", "5393@SHELL32.dll"],
+    name: ["Открыть с помощью", "OpenAs", "Open as"]
+  },
+  {
+    icon: "View",
+    resid: ["12377@SHELL32.dll", "50275@ExplorerFrame.dll"],
+    name: ["Обзор", "Review"]
+  },
+  {
+    icon: "ShutDown",
+    resid: "10946@twinui.dll",
+    name: ["Завершение работы", "Shut down"]
+  },
+  {
+    icon: "windows.close",
+    resid: "9756@SHELL32.dll",
+    name: ["Закрыть", "Close"]
+  },
+  {
+    icon: "windows.paste",
+    resid: "31396@SHELL32.dll",
+    name: ["Вставить", "Paste"]
+  },
+  {
+    icon: "windows.cut",
+    resid: "31260@SHELL32.dll",
+    name: ["Вырезать", "Cut"]
+  },
+  {
+    icon: "windows.copy",
+    resid: ["29713@SHELL32.dll"],
+    name: ["Копировать", "Copy"]
+  },
+  {
+    icon: "windows.ribbondelete",
+    resid: ["33246@SHELL32.dll", "51395@SHELL32.dll"],
+    name: ["Удалить", "Delete"]
+  },
+  {
+    icon: "windows.rename",
+    resid: "31258@SHELL32.dll",
+    name: ["Переименовать", "Rename"]
+  },
+  {
+    icon: "windows.refresh",
+    resid: ["1896022231@SHELL32.dll"],
+    name: ["Обновить", "Update", "Reload"]
+  },
+  {
+    icon: "windows.ribbonfiltercommand",
+    resid: [],
+    name: ["Сортировка", "Порядок", "Sort", "Order"]
+  },
+  {
+    icon: "Terminal",
+    resid: ["10936@twinui.dll", "10935@twinui.dll"],
+    name: ["Открыть в командной строке", "Open in terminal"]
+  },
+  {
+    icon: "windows.pintohome",
+    resid: ["5402@SHELL32.dll", "51217@SHELL32.dll", "51617@SHELL32.dll", "51393@SHELL32.dll"],
+    name: ["Закрепить", "Pin"]
+  },
+  {
+    icon: "windows.unpinfromstartscreen",
+    resid: ["51410@SHELL32.dll"],
+    name: ["Открепить", "Unpin"]
+  },
+  {
+    icon: "windows.copyaspath",
+    resid: "30344@SHELL32.dll",
+    name: ["Копировать как путь", "Copy as path"]
+  },
+  {
+    icon: "windows.pasteshortcut",
+    resid: ["37392@SHELL32.dll"],
+    name: ["Вставить ярлык", "Paste shortcut"]
+  },
+  {
+    icon: "Windows.ModernShare",
+    resid: ["33027@SHELL32.dll", "119@ntshrui.dll", "31305@SHELL32.dll"],
+    name: ["Поделиться", "Предоставить доступ", "Share"]
+  },
+  {
+    icon: "windows.recyclebin.restoreitems",
+    resid: ["28853@SHELL32.dll"],
+    name: ["Восстановить", "Отменить удаленеи", "Restore", "Cancel"]
+  },
+  {
+    icon: "Print",
+    resid: "8513@windows.storage.dll",
+    name: ["Печать", "Print"]
+  },
+  {
+    icon: "Personalize",
+    resid: [],
+    name: ["Персонализация", "Personalize"]
+  },
+  {
+    icon: "RunAsAdmin",
+    resid: ["8521@windows.storage.dll", "50960@SHELL32.dll"],
+    name: ["Запустить от имени администратора", "Run as admin"]
+  },
+  {
+    icon: "DisplaySettings",
+    resid: [],
+    name: ["Параметры экрана", "Display settings"]
+  },
+  {
+    icon: "windows.eject",
+    resid: "31398@SHELL32.dll",
+    name: ["Извлечь", "Eject"]
+  },
+  {
+    icon: "windows.selectall",
+    resid: ["12419@SHELL32.dll"],
+    name: ["Выделить все", "Выбрать всё", "Select all"]
+  },
+  {
+    icon: "windows.selectnone",
+    resid: "12420@SHELL32.dll",
+    name: ["Снять выделение", "Select none", "Deselect"]
+  },
+  {
+    icon: "windows.install",
+    resid: "8589@appresolver.dll",
+    name: ["Установить", "Install"]
+  },
+  {
+    icon: "windows.invertselection",
+    resid: "12422@SHELL32.dll",
+    name: ["Инвертировать", "Invert"]
+  },
+  {
+    icon: "windows.nextdesktopimage",
+    resid: "432@stobject.dll",
+    name: ["Следующий фон рабочего стола", "Next desktop image"]
+  },
+  {
+    icon: "windows.searchsendtocomputer",
+    resid: "12424@SHELL32.dll",
+    name: ["Отправить", "Send"]
+  },
+  {
+    icon: "windows.expand",
+    resid: "917@user32.dll",
+    name: ["Развернуть", "Expand"]
+  },
+  {
+    icon: "windows.expandall",
+    resid: "12430@SHELL32.dll",
+    name: ["Развернуть все", "Expand all"]
+  },
+  {
+    icon: "windows.collapse",
+    resid: "916@user32.dll",
+    name: ["Свернуть", "Collapse"]
+  },
+  {
+    icon: "windows.collapseall",
+    resid: "12432@SHELL32.dll",
+    name: ["Свернуть все", "Collapse all"]
+  },
+  {
+    icon: "windows.undo",
+    resid: [],
+    name: ["Отменить", "undo"]
+  },
+  {
+    icon: "windows.redo",
+    resid: [],
+    name: ["Вернуть", "Redo"]
+  },
+  {
+    icon: "windows.searchclosetab",
+    resid: "9756@SHELL32.dll",
+    name: ["Закрыть вкладку", "Close tab"]
+  },
+  {
+    icon: "windows.searchfilterkind",
+    resid: "49949@explorerframe.dll",
+    name: ["Вид", "View"]
+  },
+  {
+    icon: "Sound",
+    resid: "1126@",
+    name: ["Звук", "Sound"]
+  },
+  {
+    icon: "Defender",
+    resid: "",
+    name: ["Провер", "Check"]
+  }
+  
+].map(v => ({
+  icon: v.icon,
+  name: [
+    ...Array.isArray(v.resid) ? v.resid.map(shell.win32.string_from_resid) : [shell.win32.string_from_resid(v.resid)],
+    ...Array.isArray(v.name) ? v.name : [v.name]
+  ].filter(Boolean)
+})))
 
 shell.menu_controller.add_menu_listener(ctx => {
   const light_theme = shell.breeze.is_light_theme();
-  const icos = icons[light_theme ? 'light' : 'dark']
+  const icos = icons[light_theme ? 'light' : 'dark'];
+  
   const process_menus = m => {
     for (const menu of m.get_items()) {
       try {
         const data = menu.data();
-        data
-        let matched_ico = (Object.entries(icon_map_name).find(([k, v]) => v.includes(data.name) || v.includes(data.name_resid))?.[0])
+        
+        // Преобразуем имена в нижний регистр для нечувствительного к регистру сравнения
+        const origin_name_lower = data.origin_name ? data.origin_name.toLowerCase() : "null";
+        const name_lower = data.name ? data.name.toLowerCase() : "null";
+        
+        let best_match = null;
+        let max_matches = 0;
+        
+        for (const bt of icon_map_buttons()) {
+          let matches = 0;
+          
+          for (const n of bt.name) {
+            if (origin_name_lower.includes(n.toLowerCase()) || name_lower.includes(n.toLowerCase())) {
+              matches++;
+            }
+          }
+          
+          if (matches > max_matches) {
+            max_matches = matches;
+            best_match = bt;
+          }
+        }
+        
+        let matched_ico = best_match?.icon;
+        
         if (icos[matched_ico]) {
           menu.set_data({
             icon_svg: icos[matched_ico],
-            icon_bitmap: null,
-          })
+            icon_bitmap: new shell.value_reset(),
+          });
         }
       } catch (e) {
-        shell.println('icon replacer error', e, e.stack)
+        shell.println('icon replacer error', e, e.stack);
       }
     }
-  }
+  };
 
-  process_menus(ctx.menu)
-})
+  process_menus(ctx.menu);
+});
