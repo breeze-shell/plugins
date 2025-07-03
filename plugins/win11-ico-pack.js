@@ -1194,6 +1194,9 @@ const icons = {
     , "Move": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M480-80 310-250l57-57 73 73v-166h80v165l72-73 58 58L480-80ZM250-310 80-480l169-169 57 57-72 72h166v80H235l73 72-58 58Zm460 0-57-57 73-73H560v-80h165l-73-72 58-58 170 170-170 170ZM440-560v-166l-73 73-57-57 170-170 170 170-57 57-73-73v166h-80Z"/></svg>`
     , "Terminal": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-400H160v400Zm140-40-56-56 103-104-104-104 57-56 160 160-160 160Zm180 0v-80h240v80H480Z"/></svg>`
     , "Info": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M440-280h80v-240h-80v240Zm40-320q17 0 28.5-11.5T520-640q0-17-11.5-28.5T480-680q-17 0-28.5 11.5T440-640q0 17 11.5 28.5T480-600Zm0 520q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/></svg>`
+    , "Sound": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M400-120q-66 0-113-47t-47-113q0-66 47-113t113-47q23 0 42.5 5.5T480-418v-422h240v160H560v400q0 66-47 113t-113 47Z"/></svg>`
+    , "Mobility Center": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M756-120 537-339l84-84 219 219-84 84Zm-552 0-84-84 276-276-68-68-28 28-51-51v82l-28 28-121-121 28-28h82l-50-50 142-142q20-20 43-29t47-9q24 0 47 9t43 29l-92 92 50 50-28 28 68 68 90-90q-4-11-6.5-23t-2.5-24q0-59 40.5-99.5T701-841q15 0 28.5 3t27.5 9l-99 99 72 72 99-99q7 14 9.5 27.5T841-701q0 59-40.5 99.5T701-561q-12 0-24-2t-23-7L204-120Z"/></svg>`
+    , "Defender": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M480-80q-139-35-229.5-159.5T160-516v-244l320-120 320 120v244q0 152-90.5 276.5T480-80Zm0-84q97-30 162-118.5T718-480H480v-315l-240 90v207q0 7 2 18h238v316Z"/></svg>`
   },
 
   "light": {
@@ -2247,6 +2250,9 @@ const icons = {
     , "Move": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M480-80 310-250l57-57 73 73v-166h80v165l72-73 58 58L480-80ZM250-310 80-480l169-169 57 57-72 72h166v80H235l73 72-58 58Zm460 0-57-57 73-73H560v-80h165l-73-72 58-58 170 170-170 170ZM440-560v-166l-73 73-57-57 170-170 170 170-57 57-73-73v166h-80Z"/></svg>`
     , "Terminal": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-400H160v400Zm140-40-56-56 103-104-104-104 57-56 160 160-160 160Zm180 0v-80h240v80H480Z"/></svg>`
     , "Info": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M440-280h80v-240h-80v240Zm40-320q17 0 28.5-11.5T520-640q0-17-11.5-28.5T480-680q-17 0-28.5 11.5T440-640q0 17 11.5 28.5T480-600Zm0 520q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/></svg>`
+    , "Sound": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M400-120q-66 0-113-47t-47-113q0-66 47-113t113-47q23 0 42.5 5.5T480-418v-422h240v160H560v400q0 66-47 113t-113 47Z"/></svg>`
+    , "Mobility Center": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M756-120 537-339l84-84 219 219-84 84Zm-552 0-84-84 276-276-68-68-28 28-51-51v82l-28 28-121-121 28-28h82l-50-50 142-142q20-20 43-29t47-9q24 0 47 9t43 29l-92 92 50 50-28 28 68 68 90-90q-4-11-6.5-23t-2.5-24q0-59 40.5-99.5T701-841q15 0 28.5 3t27.5 9l-99 99 72 72 99-99q7 14 9.5 27.5T841-701q0 59-40.5 99.5T701-561q-12 0-24-2t-23-7L204-120Z"/></svg>`
+    , "Defender": `<svg xmlns="http://www.w3.org/2000/svg" height="36px" viewBox="0 -960 960 960" width="36px" fill="#e3e3e3"><path d="M480-80q-139-35-229.5-159.5T160-516v-244l320-120 320 120v244q0 152-90.5 276.5T480-80Zm0-84q97-30 162-118.5T718-480H480v-315l-240 90v207q0 7 2 18h238v316Z"/></svg>`
   }
 }
 
@@ -2268,22 +2274,27 @@ const icon_map_buttons = deferred(() => [
   {
     icon: "Rotate Right",
     resid: "37628@SHELL32.dll",
-    name: "Повернуть вправо"
+    name: ["Повернуть вправо", "Rotate right"]
+  },
+  {
+    icon: "windows.navpane",
+    resid: "2717974794@explorerframe.dll",
+    name: ["Панел", "Panel"]
   },
   {
     icon: "Rotate Left",
     resid: "37626@SHELL32.dll",
-    name: "Повернуть влево"
+    name: ["Повернуть влево", "Rotate left"]
   },
   {
     icon: "Size",
     resid: "8994@SHELL32.dll",
-    name: "Размер"
+    name: ["Размер", "Size"]
   },
   {
     icon: "File Location",
     resid: ["1049@SHELL32.dll", "1056@SHELL32.dll"],
-    name: ["Расположение файла", "Открыть расположение папки"]
+    name: ["Расположение файла", "Открыть расположение папки", "Расположить", "Фокус", "File location", "Open folder location", "Focus"]
   },
   {
     icon: "3D Print",
@@ -2293,7 +2304,12 @@ const icon_map_buttons = deferred(() => [
   {
     icon: "Edit",
     resid: ["8532@windows.storage.dll"],
-    name: ["Изменить", "Edit"]
+    name: ["Изменить", "Редактивровать", "Настройка", "Edit", "Setting"]
+  },
+  {
+    icon: "Mobility Center",
+    resid: "10943@twinui.dll",
+    name: ["Центр мобильности", "Mobility center"]
   },
   {
     icon: "PlayMedia",
@@ -2308,315 +2324,320 @@ const icon_map_buttons = deferred(() => [
   {
     icon: "ComputerManagement",
     resid: ["10934@twinui.dll", "8570@appresolver.dll"],
-    name: "Управление компьютером"
+    name: ["Управление компьютером", "Computer management"]
   },
   {
     icon: "StorageManagement",
     resid: "10933@twinui.dll",
-    name: "Управление дисками"
+    name: ["Управление дисками", "Storage management"]
   },
   {
     icon: "ApplicationsAndFeatures",
     resid: "10927@twinui.dll",
-    name: "Приложения и возможности"
+    name: ["Приложения и возможности", "Applicaions"]
   },
   {
     icon: "PowerManagement",
     resid: "10929@twinui.dll",
-    name: "Управление электропитанием"
+    name: ["Управление электропитанием", "Электропитание", "Power"]
   },
   {
     icon: "System",
     resid: "10931@twinui.dll",
-    name: "Система"
+    name: ["Система", "System"]
   },
   {
     icon: "EventsView",
     resid: "10930@twinui.dll",
-    name: "Просмотр событий"
+    name: ["Просмотр событий", "Events view"]
   },
   {
     icon: "NetworkConnections",
     resid: "10928@twinui.dll",
-    name: "Сетевые подключения"
+    name: ["Сетевые подключения", "Network connections"]
   },
   {
     icon: "Move",
     resid: "29714@SHELL32.dll",
-    name: "Переместить"
+    name: ["Переместить", "Move"]
   },
   {
     icon: "DeviceManagement",
     resid: "10932@twinui.dll",
-    name: "Диспетчер устройств"
+    name: ["Диспетчер устройств", "Device management"]
   },
   {
     icon: "TaskManager",
     resid: "10937@twinui.dll",
-    name: "Диспетчер задач"
+    name: ["Диспетчер задач", "Task manager"]
   },
   {
     icon: "SearchAdvancedOptions",
     resid: "10940@twinui.dll",
-    name: "Найти"
+    name: ["Найти", "Поиск", "Find", "Search"]
   },
   {
     icon: "Execute",
     resid: "10941@twinui.dll",
-    name: "Выполнить"
+    name: ["Выполнить", "Execute"]
   },
   {
     icon: "Explorer",
     resid: "8518@windows.storage.dll",
-    name: "Проводник"
+    name: ["Проводник", "Explorer"]
   },
   {
     icon: "Info",
     resid: [],
-    name: "Правка"
+    name: ["Правка", "Info"]
   },
   {
     icon: "windows.addnetworklocation",
     resid: ["12363@SHELL32.dll"],
-    name: "Добавить новый элемент в сетевое окружение"
+    name: ["Добавить новый элемент в сетевое окружение", "Add netowrk location"]
   },
   {
     icon: "windows.mapnetworkdrive",
     resid: [],
-    name: "Подключить сетевой диск"
+    name: ["Подключить сетевой диск", "Map network drive"]
   },
   {
     icon: "windows.disconnectnetworkdrive",
     resid: [],
-    name: "Отключить сетевой диск"
+    name: ["Отключить сетевой диск", "Disconnet network drive"]
   },
   {
     icon: "windows.diskformat",
     resid: [],
-    name: "Форматировать"
+    name: ["Форматировать", "Format"]
   },
   {
     icon: "windows.recyclebin.empty",
     resid: ["10580@SHELL32.dll", "50015@explorerframe.dll"],
-    name: "Очистить корзину"
+    name: ["Очистить корзину", "Clear"]
   },
   {
     icon: "windows.openinnewwindow",
     resid: "8533@windows.storage.dll",
-    name: "Открыть в новом окне"
+    name: ["Открыть в новом окне", "Open in new window"]
   },
   {
     icon: "windows.groupbycolumn",
     resid: [],
-    name: "Группировка"
+    name: ["Группировка", "Group"]
   },
   {
     icon: "windows.expand",
     resid: ["37606@SHELL32.dll", "8920@twinui.dll"],
-    name: ["Развернуть", "Отобразить", "Показать"]
+    name: ["Развернуть", "Отобразить", "Показать", "Показывать", "Show", "Expand"]
   },
   {
     icon: "windows.expandall",
     resid: ["37600@SHELL32.dll"],
-    name: ["Развернуть все", "Отобразить все"],
+    name: ["Развернуть все", "Отобразить все", "Show All", "Expand all"],
   },
   {
     icon: "windows.collapse",
-    name: ["Свернуть", "Не отображать", "Не показывать"],
+    name: ["Свернуть", "Не отображать", "Не показывать", "Скрывать", "Hide", "Collapse"],
   },
   {
     icon: "windows.collapseall",
-    name: ["Свернуть все"],
+    name: ["Свернуть все", "Hide all", "Collapse all"],
   },
   {
     icon: "windows.setdesktopwallpaper",
     resid: "433@stobject.dll",
-    name: "Сделать фоновым изображением рабочего стола"
+    name: ["Сделать фоновым изображением рабочего стола", "Set desktop wallpaper"]
   },
   {
     icon: "windows.newitem",
-    resid: ["12370@SHELL32.dll", "30331@SHELL32.dll"],
-    name: ["Создать", "Create"]
+    resid: ["12370@SHELL32.dll", "30331@SHELL32.dll", "1048786@SHELL32.dll"],
+    name: ["Создать", "Create", "New"]
   },
   {
     icon: "windows.iconsize.content",
     resid: "50275@explorerframe.dll",
-    name: "Содержание"
+    name: ["Содержание", "Content"]
   },
   {
     icon: "windows.properties",
     resid: ["1245395@SHELL32.dll"],
-    name: ["Исправление проблем с совместимостью", "Исправить"]
+    name: ["Исправление проблем с совместимостью", "Исправить", "Properties", "Repair"]
   },
   {
     icon: "windows.folderoptions",
     resid: ["16550@SHELL32.dll", "10938@twinui.dll", "37475@SHELL32.dll"],
-    name: ["Параметры", "Свойства", "Options"]
+    name: ["Параметры", "Свойства", "Options", "Parameters"]
   },
   {
     icon: "Windows.Zip.Action",
     resid: [],
-    name: "Добавить в архив"
+    name: ["Добавить в архив", "Add into archive"]
   },
   {
     icon: "SortBy",
     resid: [],
-    name: "Cортировка"
+    name: ["Cортировка", "Sort"]
   },
   {
     icon: "addressbar.desktop",
     resid: "13156@explorerframe.dll",
-    name: "Рабочий стол"
+    name: ["Рабочий стол", "Desktop"]
   },
   {
     icon: "windows.openfolder",
     resid: ["8556@SHELL32.dll", "8566@appresolver.dll", "8523@SHELL32.dll"],
-    name: "Открыть"
+    name: ["Открыть", "Open"]
   },
   {
     icon: "windows.openwith",
-    resid: "5392@SHELL32.dll",
-    name: "Открыть с помощью"
+    resid: ["5392@SHELL32.dll", "5393@SHELL32.dll"],
+    name: ["Открыть с помощью", "OpenAs", "Open as"]
   },
   {
     icon: "View",
     resid: ["12377@SHELL32.dll", "50275@ExplorerFrame.dll"],
-    name: "Обзор"
+    name: ["Обзор", "Review"]
   },
   {
     icon: "ShutDown",
     resid: "10946@twinui.dll",
-    name: "Завершение работы"
+    name: ["Завершение работы", "Shut down"]
   },
   {
     icon: "windows.close",
     resid: "9756@SHELL32.dll",
-    name: "Закрыть"
+    name: ["Закрыть", "Close"]
   },
   {
     icon: "windows.paste",
     resid: "31396@SHELL32.dll",
-    name: "Вставить"
+    name: ["Вставить", "Paste"]
   },
   {
     icon: "windows.cut",
     resid: "31260@SHELL32.dll",
-    name: "Вырезать"
+    name: ["Вырезать", "Cut"]
   },
   {
     icon: "windows.copy",
     resid: ["29713@SHELL32.dll"],
-    name: "Копировать"
+    name: ["Копировать", "Copy"]
   },
   {
     icon: "windows.ribbondelete",
     resid: ["33246@SHELL32.dll", "51395@SHELL32.dll"],
-    name: "Удалить"
+    name: ["Удалить", "Delete"]
   },
   {
     icon: "windows.rename",
     resid: "31258@SHELL32.dll",
-    name: "Переименовать"
+    name: ["Переименовать", "Rename"]
   },
   {
     icon: "windows.refresh",
     resid: ["1896022231@SHELL32.dll"],
-    name: "Обновить"
+    name: ["Обновить", "Update", "Reload"]
   },
   {
     icon: "windows.ribbonfiltercommand",
     resid: [],
-    name: "Сортировка"
+    name: ["Сортировка", "Порядок", "Sort", "Order"]
   },
   {
     icon: "Terminal",
     resid: ["10936@twinui.dll", "10935@twinui.dll"],
-    name: "Открыть в командной строке"
+    name: ["Открыть в командной строке", "Open in terminal"]
   },
   {
     icon: "windows.pintohome",
-    resid: ["5402@SHELL32.dll", "51217@SHELL32.dll", "51617@SHELL32.dll"],
-    name: "Закрепить"
+    resid: ["5402@SHELL32.dll", "51217@SHELL32.dll", "51617@SHELL32.dll", "51393@SHELL32.dll"],
+    name: ["Закрепить", "Pin"]
+  },
+  {
+    icon: "windows.unpinfromstartscreen",
+    resid: ["51410@SHELL32.dll"],
+    name: ["Открепить", "Unpin"]
   },
   {
     icon: "windows.copyaspath",
     resid: "30344@SHELL32.dll",
-    name: "Копировать как путь"
+    name: ["Копировать как путь", "Copy as path"]
   },
   {
     icon: "windows.pasteshortcut",
     resid: ["37392@SHELL32.dll"],
-    name: "Вставить ярлык"
+    name: ["Вставить ярлык", "Paste shortcut"]
   },
   {
     icon: "Windows.ModernShare",
-    resid: ["33027@SHELL32.dll", "119@ntshrui.dll"],
-    name: ["Поделиться", "Предоставить доступ"]
+    resid: ["33027@SHELL32.dll", "119@ntshrui.dll", "31305@SHELL32.dll"],
+    name: ["Поделиться", "Предоставить доступ", "Share"]
   },
   {
     icon: "windows.recyclebin.restoreitems",
     resid: ["28853@SHELL32.dll"],
-    name: ["Восстановить", "Отменить удаленеи"]
+    name: ["Восстановить", "Отменить удаленеи", "Restore", "Cancel"]
   },
   {
     icon: "Print",
     resid: "8513@windows.storage.dll",
-    name: "Печать"
+    name: ["Печать", "Print"]
   },
   {
     icon: "Personalize",
     resid: [],
-    name: "Персонализация"
+    name: ["Персонализация", "Personalize"]
   },
   {
     icon: "RunAsAdmin",
-    resid: "8521@windows.storage.dll",
-    name: "Запустить от имени администратора"
+    resid: ["8521@windows.storage.dll", "50960@SHELL32.dll"],
+    name: ["Запустить от имени администратора", "Run as admin"]
   },
   {
     icon: "DisplaySettings",
     resid: [],
-    name: "Параметры экрана"
+    name: ["Параметры экрана", "Display settings"]
   },
   {
     icon: "windows.eject",
     resid: "31398@SHELL32.dll",
-    name: "Извлечь"
+    name: ["Извлечь", "Eject"]
   },
   {
     icon: "windows.selectall",
     resid: ["12419@SHELL32.dll"],
-    name: ["Выделить все", "Выбрать всё"]
+    name: ["Выделить все", "Выбрать всё", "Select all"]
   },
   {
     icon: "windows.selectnone",
     resid: "12420@SHELL32.dll",
-    name: "Снять выделение"
+    name: ["Снять выделение", "Select none", "Deselect"]
   },
   {
     icon: "windows.install",
     resid: "8589@appresolver.dll",
-    name: "Установить"
+    name: ["Установить", "Install"]
   },
   {
     icon: "windows.invertselection",
     resid: "12422@SHELL32.dll",
-    name: "Инвертировать выделение"
+    name: ["Инвертировать", "Invert"]
   },
   {
     icon: "windows.nextdesktopimage",
     resid: "432@stobject.dll",
-    name: "Следующий фон рабочего стола"
+    name: ["Следующий фон рабочего стола", "Next desktop image"]
   },
   {
     icon: "windows.searchsendtocomputer",
     resid: "12424@SHELL32.dll",
-    name: "Отправить"
+    name: ["Отправить", "Send"]
   },
   {
     icon: "windows.expand",
     resid: "917@user32.dll",
-    name: "Развернуть"
+    name: ["Развернуть", "Expand"]
   },
   {
     icon: "windows.expandall",
@@ -2626,7 +2647,7 @@ const icon_map_buttons = deferred(() => [
   {
     icon: "windows.collapse",
     resid: "916@user32.dll",
-    name: "Свернуть"
+    name: ["Свернуть", "Collapse"]
   },
   {
     icon: "windows.collapseall",
@@ -2636,23 +2657,34 @@ const icon_map_buttons = deferred(() => [
   {
     icon: "windows.undo",
     resid: [],
-    name: "Отменить"
+    name: ["Отменить", "undo"]
   },
   {
     icon: "windows.redo",
     resid: [],
-    name: "Вернуть"
+    name: ["Вернуть", "Redo"]
   },
   {
     icon: "windows.searchclosetab",
     resid: "9756@SHELL32.dll",
-    name: "Закрыть вкладку"
+    name: ["Закрыть вкладку", "Close tab"]
   },
   {
     icon: "windows.searchfilterkind",
     resid: "49949@explorerframe.dll",
-    name: "Вид"
+    name: ["Вид", "View"]
   },
+  {
+    icon: "Sound",
+    resid: "1126@",
+    name: ["Звук", "Sound"]
+  },
+  {
+    icon: "Defender",
+    resid: "",
+    name: ["Провер", "Check"]
+  }
+  
 ].map(v => ({
   icon: v.icon,
   name: [
@@ -2663,26 +2695,48 @@ const icon_map_buttons = deferred(() => [
 
 shell.menu_controller.add_menu_listener(ctx => {
   const light_theme = shell.breeze.is_light_theme();
-  const icos = icons[light_theme ? 'light' : 'dark']
+  const icos = icons[light_theme ? 'light' : 'dark'];
+  
   const process_menus = m => {
     for (const menu of m.get_items()) {
       try {
         const data = menu.data();
-        data
-        let matched_bt = icon_map_buttons().find(bt => bt.name.includes(data.origin_name) || bt.name.includes(data.name));
-        let matched_ico = matched_bt?.icon;
-
+        
+        // Преобразуем имена в нижний регистр для нечувствительного к регистру сравнения
+        const origin_name_lower = data.origin_name ? data.origin_name.toLowerCase() : "null";
+        const name_lower = data.name ? data.name.toLowerCase() : "null";
+        
+        let best_match = null;
+        let max_matches = 0;
+        
+        for (const bt of icon_map_buttons()) {
+          let matches = 0;
+          
+          for (const n of bt.name) {
+            if (origin_name_lower.includes(n.toLowerCase()) || name_lower.includes(n.toLowerCase())) {
+              matches++;
+            }
+          }
+          
+          if (matches > max_matches) {
+            max_matches = matches;
+            best_match = bt;
+          }
+        }
+        
+        let matched_ico = best_match?.icon;
+        
         if (icos[matched_ico]) {
           menu.set_data({
             icon_svg: icos[matched_ico],
             icon_bitmap: new shell.value_reset(),
-          })
+          });
         }
       } catch (e) {
-        shell.println('icon replacer error', e, e.stack)
+        shell.println('icon replacer error', e, e.stack);
       }
     }
-  }
+  };
 
-  process_menus(ctx.menu)
-})
+  process_menus(ctx.menu);
+});
