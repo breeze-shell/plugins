@@ -1,7 +1,7 @@
 // @name: Windows 11 Icon Pack
 // @description: 给右键菜单换上 Windows 11 风格的图标 / Change the right-click menu to Windows 11 style icons
 // @author: Unknown
-// @version: 0.0.3
+// @version: 0.0.4
 
 import * as shell from "mshell"
 
@@ -2477,7 +2477,7 @@ const icon_map_buttons = deferred(() => [
   {
     icon: "SortBy",
     resid: [],
-    name: ["Cортировка", "Sort"]
+    name: ["Cортировка", "Sort", "排序方式"]
   },
   {
     icon: "addressbar.desktop",
@@ -2512,17 +2512,17 @@ const icon_map_buttons = deferred(() => [
   {
     icon: "windows.paste",
     resid: "31396@SHELL32.dll",
-    name: ["Вставить", "Paste"]
+    name: ["Вставить", "Paste", "粘贴"]
   },
   {
     icon: "windows.cut",
     resid: "31260@SHELL32.dll",
-    name: ["Вырезать", "Cut"]
+    name: ["Вырезать", "Cut", "剪切"]
   },
   {
     icon: "windows.copy",
     resid: ["29713@SHELL32.dll"],
-    name: ["Копировать", "Copy"]
+    name: ["Копировать", "Copy", "复制"]
   },
   {
     icon: "windows.ribbondelete",
