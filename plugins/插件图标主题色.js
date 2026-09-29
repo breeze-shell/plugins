@@ -243,19 +243,16 @@ async function applyNow(isAuto=false) {
         return hex.slice(4, 6) + hex.slice(2, 4) + hex.slice(0, 2)
     }
     try {
-        shell.subproc.run_async(`reg query "${REG.path}" /v "${REG.colorization}"`, back=>{
-            const out = back.out
-            const colorization = out.substr(out.lastIndexOf("0x")+4, 6);
-            const color = {
-                //accent: `#${bgrToRgb(accent)}`,
-                colorization: `#${colorization}`
-            };
-            if (isAuto && color.colorization == read_config_key("oldColor.colorization")) {return}
-            write_config_key("oldColor.colorization", color.colorization)
-            applyAccentColor(color)
-        })
-        //const colorizationOut = shell.subproc.run_async(`reg query "${REG.path}" /v "${REG.colorization}"`).out;
-        //const colorization = colorizationOut.substr(colorizationOut.lastIndexOf("0x")+4, 6);
+        // 直接读注册表，不启动 reg.exe 子进程 —— 否则每次右键（菜单构建时）都会闪出一个控制台窗口
+        const colorization = (shell.win32.reg_get_dword(REG.path, REG.colorization) >>> 0)
+            .toString(16).padStart(8, "0").slice(-6);
+        const color = {
+            //accent: `#${bgrToRgb(accent)}`,
+            colorization: `#${colorization}`
+        };
+        if (isAuto && color.colorization == read_config_key("oldColor.colorization")) {return}
+        write_config_key("oldColor.colorization", color.colorization)
+        applyAccentColor(color)
     } catch (error) {
         shell.println("获取注册表颜色失败:", error);
         return null;
