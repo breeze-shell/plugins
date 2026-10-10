@@ -37,7 +37,7 @@ const openWindow = (items: RenameItem[], presetId: string) => {
     });
 };
 
-shell.menu_controller.add_menu_listener(ctx => {
+const onMenu = (ctx: shell.menu_info_basic_js) => {
     const folderView = ctx.context.folder_view;
     if (!folderView) return;
 
@@ -55,7 +55,9 @@ shell.menu_controller.add_menu_listener(ctx => {
         canUndo: actions.canUndo,
         lastBatchSize: actions.lastBatchSize
     });
-});
+};
+
+shell.menu_controller.add_menu_listener(onMenu);
 
 helper.set_on_menu(menu => {
     menu.append_menu({
@@ -81,6 +83,7 @@ if (shell.fs.exists(E2E_MARKER)) {
         openWindow,
         quickApply: actions.quickApply,
         undoLast: actions.undoLast,
+        onMenu,
         settings: () => settings
     };
     helper.log('e2e hook enabled');

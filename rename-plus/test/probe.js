@@ -75,6 +75,59 @@ const main = (hook) => {
         check("lastBatch cleared", null, hook.settings().lastBatch);
     });
 
+    step("menu", () => {
+        const fakeMenu = entries => ({
+            entries,
+            items: [{ data: () => ({ name: "重命名" }) }],
+            append_menu(entry) {
+                entries.push(entry);
+                return {};
+            },
+            append_menu_after(entry, after) {
+                entries.push({ ...entry, after });
+                return {};
+            },
+            append_spacer() {
+                entries.push({ name: "-----" });
+            },
+            close() {}
+        });
+
+        const rootEntries = [];
+        hook.onMenu({
+            menu: fakeMenu(rootEntries),
+            context: {
+                folder_view: {
+                    selected_files: fullPaths(),
+                    focused_file_path: fullPaths()[0],
+                    current_path: workDir
+                }
+            }
+        });
+
+        const top = rootEntries[0];
+        check("菜单插到原生重命名后面", top.after, 0);
+        check("菜单标题带数量", top.name, "重命名 Plus（5 项）");
+
+        const subEntries = [];
+        top.submenu(fakeMenu(subEntries));
+        check(
+            "一级子菜单",
+            subEntries.map(entry => entry.name).join(" | "),
+            "批量重命名…（5 项） | ----- | 常用预设 | ----- | 撤销上次重命名"
+        );
+
+        const presetEntries = [];
+        subEntries[2].submenu(fakeMenu(presetEntries));
+        check("预设入口数量", presetEntries.length, 10);
+        check("序号入口带预览", presetEntries[0].name, "序号重命名  → 001.JPG");
+
+        presetEntries[0].action();
+        check("从菜单直接应用序号", basenames().join(","), "001.JPG,002.JPG,003.JPG,004.txt,005.txt");
+        hook.undoLast();
+        check("菜单改名后可撤销", basenames().join(","), SEED.slice().sort().join(","));
+    });
+
     step("window", () => {
         const paths = __SINGLE__ ? fullPaths().slice(0, 1) : fullPaths();
         hook.openWindow(hook.collectItems(paths), "__PRESET_ID__");
