@@ -231,7 +231,7 @@ export const Button = ({
             borderWidth={variant === 'accent' ? 0 : 1}
             borderColor={tokens.controlStroke}
             backgroundColor={bg}
-            opacity={disabled ? 130 : 255}
+            opacity={255}
             onClick={() => {
                 if (!disabled) onClick?.();
             }}
@@ -274,7 +274,7 @@ export const IconButton = ({
             justifyContent="center"
             borderRadius={5}
             backgroundColor={disabled ? tokens.transparent : hover.isActive ? tokens.controlPressed : hover.isHovered ? tokens.controlHover : tokens.transparent}
-            opacity={disabled ? 130 : 255}
+            opacity={255}
             onClick={() => {
                 if (!disabled) onClick?.();
             }}
@@ -360,7 +360,7 @@ export const ToggleSwitch = ({
             alignItems="center"
             gap={12}
             flexGrow={1}
-            opacity={disabled ? 130 : 255}
+            opacity={255}
             onClick={() => {
                 if (!disabled) onChange(!value);
             }}
@@ -762,17 +762,17 @@ export const Chip = ({
             horizontal
             alignItems="center"
             gap={5}
-            height={24}
-            paddingLeft={icon ? 7 : 9}
-            paddingRight={9}
-            borderRadius={4}
+            height={18}
+            paddingLeft={icon ? 5 : 6}
+            paddingRight={6}
+            borderRadius={3}
             backgroundColor={bg}
             borderWidth={1}
             borderColor={selected ? fg : tokens.transparent}
             onClick={onClick}
         >
-            {icon && iconElement(icon, 12, fg)}
-            <Text c={tokens} text={label} fontSize={12} color={fg} />
+            {icon && iconElement(icon, 10, fg)}
+            <Text c={tokens} text={label} fontSize={10} fontWeight={600} color={fg} />
         </flex>
     );
 };
@@ -900,8 +900,8 @@ export const FieldRow = ({
 export const SectionLabel = ({ text, children, c }: { text: string; children?: unknown; c?: FluentTokens }) => {
     const tokens = c ?? fluent();
     return (
-        <flex horizontal alignItems="center" gap={8} paddingTop={6} paddingBottom={2}>
-            <Text c={tokens} text={text} fontSize={12} fontWeight={600} color={tokens.textTertiary} />
+        <flex horizontal alignItems="center" gap={8} paddingTop={10} paddingBottom={4}>
+            <Text c={tokens} text={text} fontSize={13} fontWeight={600} color={tokens.textSecondary} />
             <spacer />
             {slot(children)}
         </flex>

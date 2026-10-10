@@ -29,6 +29,7 @@ import {
     Divider,
     EmptyState,
     FieldRow,
+    InfoBar,
     SegmentedControl,
     SectionLabel,
     Text,
@@ -504,10 +505,9 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
         <flex horizontal={false} width={WINDOW_WIDTH} height={WINDOW_HEIGHT} backgroundColor={c.windowBg} alignItems="stretch" onKeyDown={onKey}>
             <Header
                 c={c}
+                kind={kind}
                 profile={profile}
                 stats={stats}
-                onUndo={undo}
-                onRedo={redo}
                 onToggleEnabled={() => patchProfile({ enabled: !profile.enabled }, profile.enabled ? t('已停用该类型', 'Rules disabled') : t('已启用该类型', 'Rules enabled'))}
                 onClose={props.onClose}
             />
@@ -530,8 +530,16 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
                         virtualCount={stats.virtual}
                     />
 
-                    {snapshot === null ? (
-                        <Card c={c} flexGrow={1}>
+                    {!profile.enabled && profile.nodes.length > 0 ? (
+                        <InfoBar
+                            c={c}
+                            severity="warning"
+                            title={t('这条规则还没启用，真实菜单不会有变化', 'These rules are off, the real menu stays unchanged')}
+                            message={t('点右上角的「规则已停用」开关把它打开。', 'Turn on the switch in the top-right corner.')}
+                        />
+                    ) : null}
+
+                    {snapshot === null ? (                        <Card c={c} flexGrow={1}>
                             <EmptyState
                                 c={c}
                                 icon={Icons.info}
@@ -543,8 +551,8 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
                             />
                         </Card>
                     ) : (
-                        <flex horizontal={false} flexGrow={1} flexShrink={1} alignItems="stretch" gap={8} enableScrolling={true} cropOverflow={true} maxHeight={WINDOW_HEIGHT - 168}>
-                            <Card c={c} padding={8} gap={5} flexGrow={1}>
+                        <flex horizontal={false} flexGrow={1} alignItems="stretch" gap={8} enableScrolling={true} cropOverflow={true} maxHeight={WINDOW_HEIGHT - 168}>
+                            <Card c={c} padding={8} gap={5}>
                                 <flex horizontal={true} alignItems="center" gap={6}>
                                     <SectionLabel c={c} text={t('菜单内容', 'Menu content')} />
                                     <flex flexGrow={1} />
@@ -561,7 +569,7 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
                                         color={c.textTertiary}
                                     />
                                 </flex>
-                                <flex horizontal={false} flexGrow={1} alignItems="stretch" gap={2} padding={5} borderRadius={8} borderColor={c.border} borderWidth={1} backgroundColor={c.menuBg}>
+                                <flex horizontal={false} alignItems="stretch" gap={0} padding={4} borderRadius={7} borderColor={c.border} borderWidth={1} backgroundColor={c.menuBg}>
                                     {rows.length === 0 ? (
                                         <flex padding={18} justifyContent="center" alignItems="center">
                                             <Text c={c} text={t('这个菜单现在没有内容', 'This menu has no items')} fontSize={12} color={c.textSecondary} />
@@ -575,6 +583,11 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
 
                             <Card c={c} padding={8} gap={5}>
                                 <TrashZone c={c} offer={offer} active={drag !== null} virtualCount={stats.virtual} />
+                            </Card>
+
+                            <Card c={c} padding={9} gap={6}>
+                                <SectionLabel c={c} text={t('快捷键与手势', 'Shortcuts and gestures')} />
+                                <ShortcutHints c={c} />
                             </Card>
                         </flex>
                     )}
@@ -638,6 +651,32 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
         </flex>
     );
 });
+
+const ShortcutHints = ({ c }: { c: ReturnType<typeof fluent> }) => {
+    const rows = [
+        { keys: 'Ctrl+Z / Ctrl+Y', text: t('撤销 / 重做', 'Undo / redo') },
+        { keys: 'Ctrl+D / Ctrl+Del', text: t('复制 / 删除选中的项', 'Duplicate / delete the selection') },
+        { keys: 'Ctrl+↑ ↓', text: t('把选中的项上下移动', 'Move the selection up or down') },
+        { keys: 'Alt+↑ ↓', text: t('上下选择行', 'Select the row above or below') },
+        { keys: 'Enter / Esc', text: t('改名 / 取消选中', 'Rename / clear the selection') },
+        {
+            keys: t('拖拽', 'Drag'),
+            text: t('拖动排序；拖到分组标题中间放进分组；拖到底部横条移出规则', 'Reorder; onto a group title to nest; onto the bottom bar to remove the rule')
+        }
+    ];
+    return (
+        <flex horizontal={false} alignItems="stretch" gap={3}>
+            {rows.map(row => (
+                <flex key={row.keys} horizontal={true} alignItems="center" gap={8}>
+                    <flex width={136} justifyContent="end">
+                        <Chip c={c} label={row.keys} fg={c.textSecondary} bg={c.subtle} />
+                    </flex>
+                    <Text c={c} text={row.text} fontSize={11} color={c.textTertiary} maxWidth={400} truncate={64} />
+                </flex>
+            ))}
+        </flex>
+    );
+};
 
 const TrashZone = ({ c, offer, active, virtualCount }: { c: ReturnType<typeof fluent>; offer: (t: DropTarget) => void; active: boolean; virtualCount: number }) => {
     const hover = useHoverActive();
@@ -718,7 +757,7 @@ const MenuTail = ({ c, offer, active, index }: { c: ReturnType<typeof fluent>; o
                 if (active) offer({ parentId: null, index, mode: 'after' });
             }}
         >
-            <Text c={c} text={hovered ? t('放到菜单末尾', 'Move to the end') : t('菜单末尾', 'End of menu')} fontSize={10} color={hovered ? c.accent : c.textTertiary} />
+            <Text c={c} text={!active ? '' : hovered ? t('放到菜单末尾', 'Move to the end') : t('菜单末尾', 'End of menu')} fontSize={11} color={hovered ? c.accent : c.textTertiary} />
         </flex>
     );
 };
@@ -811,7 +850,7 @@ const RowView = memo((props: RowProps) => {
         );
     }
 
-    const background = props.dragging ? c.accentSoft : props.selected ? c.selection : hover.isHovered ? c.hover : undefined;
+    const background = props.selected ? c.selection : hover.isHovered ? c.hoverStrong : undefined;
 
     return (
         <flex
@@ -823,9 +862,9 @@ const RowView = memo((props: RowProps) => {
             paddingRight={4}
             borderRadius={5}
             backgroundColor={background}
-            borderColor={props.insideHint ? c.accent : undefined}
-            borderWidth={props.insideHint ? 1 : 0}
-            opacity={hidden || row.hiddenByPolicy ? 140 : 255}
+            borderColor={props.insideHint || props.dragging ? c.accent : c.transparent}
+            borderWidth={1}
+            opacity={props.dragging || hidden || row.hiddenByPolicy ? 150 : 255}
             cursor="grab"
             animatedVars={COLOR_VARS}
             animationCurve={{ ...FAST, vars: COLOR_VARS }}
@@ -852,7 +891,9 @@ const RowView = memo((props: RowProps) => {
                 });
             }}
         >
+            <flex width={2} height={ROW_HEIGHT - 10} borderRadius={1} backgroundColor={props.selected ? c.accent : c.transparent} />
             {isSep ? <flex width={12} /> : <flex width={12} alignItems="center" justifyContent="center">{iconElement(Icons.grip, 11, hidden ? c.textTertiary : c.textSecondary)}</flex>}
+            {isGroup ? <TinyButton c={c} icon={props.expanded ? Icons.chevronDown : Icons.chevronRight} size={18} onClick={() => { props.claim(row.key); props.onToggleExpand(node.id); }} /> : null}
             {nodeGlyph(row, hidden ? c.textTertiary : c.text, 15)}
 
             <flex flexGrow={1} horizontal={true} alignItems="center" gap={6}>
@@ -861,22 +902,12 @@ const RowView = memo((props: RowProps) => {
             </flex>
 
             {row.virtual ? <Chip c={c} label={t('原生', 'native')} fg={c.textTertiary} bg={c.subtle} /> : null}
-            {isGroup ? <Chip c={c} label={node.layout === 'row' ? t('横排', 'row') : t('分组', 'group')} fg={c.accent} bg={c.accentSoft} icon={node.layout === 'row' ? Icons.rowStack : Icons.folder} /> : null}
+            {isGroup ? <Chip c={c} label={props.expanded ? (node.layout === 'row' ? t('横排', 'row') : t('分组', 'group')) : t(` 项`, ` items`)} fg={props.expanded ? c.accent : c.textSecondary} bg={props.expanded ? c.accentSoft : c.subtle} icon={props.expanded ? (node.layout === 'row' ? Icons.rowStack : Icons.folder) : Icons.folder} /> : null}
             {node.kind === 'item' && !row.virtual && node.ref === null ? <Chip c={c} label={t('命令', 'command')} fg={c.successText} bg={c.successSoft} icon={Icons.command} /> : null}
             {node.kind === 'item' && node.ref?.hasSubmenu ? <Chip c={c} label={t('子菜单', 'submenu')} fg={c.textSecondary} bg={c.subtle} icon={Icons.layers} /> : null}
             {hidden ? <Chip c={c} label={t('隐藏', 'hidden')} fg={c.warningText} bg={c.warningSoft} icon={Icons.eyeOff} /> : null}
 
-            {isGroup ? (
-                <TinyButton
-                    c={c}
-                    icon={props.expanded ? Icons.chevronDown : Icons.chevronRight}
-                    onClick={() => {
-                        props.claim(row.key);
-                        props.onToggleExpand(node.id);
-                    }}
-                />
-            ) : null}
-            {isSep ? null : (
+           {isSep ? null : (
                 <TinyButton
                     c={c}
                     icon={Icons.pencil}
@@ -901,19 +932,17 @@ const RowView = memo((props: RowProps) => {
 });
 
 const Header = ({
+    kind,
     c,
     profile,
     stats,
-    onUndo,
-    onRedo,
     onToggleEnabled,
     onClose
 }: {
     c: ReturnType<typeof fluent>;
+    kind: MenuKind;
     profile: Profile;
     stats: { native: number; managed: number; virtual: number };
-    onUndo: () => void;
-    onRedo: () => void;
     onToggleEnabled: () => void;
     onClose: () => void;
 }) => {
@@ -924,14 +953,11 @@ const Header = ({
                 {iconElement(Icons.list, 15, c.accent)}
             </flex>
             <flex horizontal={false} alignItems="start" gap={0}>
-                <Text c={c} text={t('右键菜单编辑器', 'Context Menu Editor')} fontSize={14} fontWeight={600} />
+                <Text c={c} text={KIND_META[kind].label} fontSize={14} fontWeight={600} />
                 <Text c={c} text={`${stats.managed} ${t('项受规则控制', 'managed')} · ${stats.native} ${t('项原生', 'native')}`} fontSize={10} color={c.textTertiary} />
             </flex>
             <flex flexGrow={1} />
-            <TinyButton c={c} icon={Icons.undo} onClick={onUndo} />
-            <TinyButton c={c} icon={Icons.redo} onClick={onRedo} />
-            <Divider c={c} vertical={true} />
-            <flex
+           <flex
                 horizontal={true}
                 alignItems="center"
                 gap={7}
@@ -1034,6 +1060,7 @@ const CanvasToolbar = ({
         <Button c={c} icon={Icons.rowStack} label={t('新横排', 'New row')} variant="standard" onClick={() => onAddGroup('row')} />
         <Button c={c} icon={Icons.separator} label={t('分隔线', 'Separator')} variant="standard" onClick={onAddSep} />
         <Button c={c} icon={Icons.command} label={t('新命令', 'New command')} variant="standard" onClick={onAddCommand} />
+        <Text c={c} text={t('新项加到菜单末尾，选中的是分组时加进那个分组', 'New items go to the end of the menu, or into the selected group')} fontSize={10} color={c.textTertiary} maxWidth={220} />
         <flex flexGrow={1} />
         <Button
             c={c}
@@ -1050,7 +1077,7 @@ const StatusBar = ({ c, status, tone, stats }: { c: ReturnType<typeof fluent>; s
     <flex horizontal={true} height={28} alignItems="center" gap={8} paddingLeft={14} paddingRight={14} backgroundColor={c.headerBg} borderColor={c.divider} borderWidth={1}>
         {iconElement(Icons.info, 11, tone.fg)}
         <flex flexGrow={1}>
-            <Text c={c} text={status} fontSize={11} color={tone.fg} maxWidth={760} truncate={120} />
+            <Text c={c} text={status} fontSize={11} color={c.textSecondary} maxWidth={760} truncate={120} />
         </flex>
         <Text c={c} text={`${stats.managed} ${t('条规则', 'rules')} · ${stats.virtual} ${t('项未纳入', 'unmanaged')}`} fontSize={10} color={c.textTertiary} />
     </flex>
@@ -1396,11 +1423,11 @@ const IconPicker = ({
             <flex horizontal={true} alignItems="center" gap={6}>
                 <SectionLabel c={c} text={t('图标', 'Icon')} />
                 <flex flexGrow={1} />
-                <Button c={c} label={t('原生', 'Native')} variant={node.icon.source === 'original' ? 'accent' : 'subtle'} onClick={() => onEdit(row, current => withIcon(current, { source: 'original' }), t('已换回原生图标', 'Native icon'))} height={24} />
-                <Button c={c} label={t('无', 'None')} variant={node.icon.source === 'none' ? 'accent' : 'subtle'} onClick={() => onEdit(row, current => withIcon(current, { source: 'none' }), t('已去掉图标', 'Icon removed'))} height={24} />
+                <Button c={c} label={t('原生', 'Native')} variant="subtle" onClick={() => onEdit(row, current => withIcon(current, { source: 'original' }), t('已换回原生图标', 'Native icon'))} height={24} />
+                <Button c={c} label={t('无', 'None')} variant="subtle" onClick={() => onEdit(row, current => withIcon(current, { source: 'none' }), t('已去掉图标', 'Icon removed'))} height={24} />
             </flex>
             <flex horizontal={false} alignItems="stretch" gap={3}>
-                {[0, 1, 2, 3, 4].map(line => (
+                {Array.from({ length: Math.ceil(ICON_PALETTE.length / 8) }, (_, line) => (
                     <flex key={line} horizontal={true} gap={3} alignItems="center">
                         {ICON_PALETTE.slice(line * 8, line * 8 + 8).map(name => (
                             <IconChoice

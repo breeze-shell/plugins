@@ -151,7 +151,7 @@ export const fluent = () => {
         transparent: '#00000000',
         windowBg: light ? '#F3F3F3FF' : '#1F1F1FFF',
         railBg: light ? '#EBEBEBFF' : '#242424FF',
-        canvasBg: light ? '#FAFAFAFF' : '#2A2A2AFF',
+        canvasBg: light ? '#FAFAFAFF' : '#202020FF',
         headerBg: light ? '#F5F5F5FF' : '#272727FF',
         menuBg: light ? '#FBFBFBFF' : '#2E2E2EFF',
         border: light ? '#0000001F' : '#FFFFFF1A',
