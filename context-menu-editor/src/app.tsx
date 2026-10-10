@@ -6,6 +6,7 @@ import {
     clampIndex,
     countItems,
     duplicateNode,
+    flatten,
     groupNode,
     insertNode,
     itemNode,
@@ -16,10 +17,12 @@ import {
     removeNode,
     sepNode,
     unwrapGroup,
-    updateNode
+    updateNode,
+    wrapInGroup
 } from './model';
-import { CanvasRow, buildCanvas } from './plan';
-import { ShortcutAction, shortcutFor } from './shortcuts';
+import { CanvasRow, PlanWarningKind, adoptUnmanaged, analysePlan, buildCanvas } from './plan';
+import { History, emptyHistory, recordHistory, redoHistory, undoHistory } from './history';
+import { ShortcutAction, shortcutFor, stepIndex } from './shortcuts';
 import { COLOR_VARS, FAST, Icons, fluent, toneColor } from './theme';
 import {
     Badge,
@@ -37,6 +40,7 @@ import {
     TextField,
     ToggleSwitch,
     iconElement,
+    isTyping,
     useHoverActive
 } from './ui';
 import { Fragment, ReactNode, memo, useCallback, useEffect, useMemo, useRef, useState } from './react';
@@ -65,10 +69,28 @@ const KIND_META: Record<MenuKind, { icon: string; label: string; hint: string }>
 
 const IDLE_HINT = t('拖动行可以排序；拖到分组标题上放进分组；行右侧的按钮可以改名和隐藏', 'Drag rows to reorder, onto a group title to nest; the row buttons rename and hide');
 
+const HEADER_HEIGHT = 54;
+const STATUS_HEIGHT = 28;
+const ACTION_ROW_HEIGHT = 32;
+const ACTION_GAP = 5;
+const ACTION_PAD = 8;
 
-type DropTarget = { parentId: string | null; index: number; mode: 'before' | 'after' | 'inside' };
+// 宿主的 flexShrink 压不动滚动容器, 表单区高度只能按操作条行数自己算
+const actionBarHeight = (rows: number) => ACTION_PAD * 2 + rows * ACTION_ROW_HEIGHT + (rows - 1) * ACTION_GAP;
+const formMaxHeight = (rows: number) => WINDOW_HEIGHT - HEADER_HEIGHT - STATUS_HEIGHT - 1 - actionBarHeight(rows);
+
+const WARNING_TEXT: Record<PlanWarningKind, string> = {
+    'empty-group': t('空分组不会出现在菜单里', 'Empty group never shows'),
+    'unknown-ref': t('匹配不到原生项，不会出现', 'No matching native item'),
+    'ignored-in-row': t('横排里放不下分组，会被忽略', 'A group in a row is ignored'),
+    'dead-separator': t('这里的分隔线会被省略', 'This separator is dropped')
+};
+
+type DropTarget = { parentId: string | null; index: number; slot: number; mode: 'before' | 'after' | 'inside' };
 type DragState = { sourceKey: string; label: string };
 type ArmState = { sourceKey: string; label: string; moves: number; row: string | null };
+
+const DOUBLE_CLICK_MS = 400;
 
 const clockText = (at: number): string => {
     if (!at) return '-';
@@ -85,6 +107,7 @@ const nodeLabel = (node: Node, fallback: string): string => {
 
 const withIcon = (node: Node, icon: IconSpec): Node => (node.kind === 'sep' ? node : { ...node, icon });
 const toggledHidden = (node: Node): Node => (node.kind === 'sep' ? node : { ...node, hidden: !node.hidden });
+const orderKey = (nodes: Node[]): string => flatten(nodes).map(entry => entry.node.id).join('|');
 
 const nodeGlyph = (row: CanvasRow, color: string, size: number) => {
     const { node } = row;
@@ -103,7 +126,8 @@ export type EditorProps = {
     settings: Settings;
     initialKind: MenuKind;
     status: string;
-    onSettings: (next: Settings) => void;
+    onProfile: (kind: MenuKind, profile: Profile) => void;
+    subscribe: (listener: (next: Settings) => void) => () => void;
     onClose: () => void;
 };
 
@@ -116,8 +140,7 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
     const [drag, setDrag] = useState<DragState | null>(null);
     const [drop, setDrop] = useState<DropTarget | null>(null);
     const [status, setStatus] = useState(props.status || IDLE_HINT);
-    const [past, setPast] = useState<{ kind: MenuKind; nodes: Node[] }[]>([]);
-    const [future, setFuture] = useState<{ kind: MenuKind; nodes: Node[] }[]>([]);
+    const [history, setHistory] = useState<History>(emptyHistory);
     const [customSvg, setCustomSvg] = useState('');
     const [editing, setEditing] = useState<{ key: string; value: string } | null>(null);
 
@@ -128,6 +151,9 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
     const claimRef = useRef<string | null>(null);
     const claimTimer = useRef<number | null>(null);
     const dragActiveRef = useRef(false);
+    const suppressResetRef = useRef(false);
+    const clickRef = useRef<{ key: string; at: number } | null>(null);
+    const renamingRef = useRef(false);
 
     const profile = settings.profiles[kind];
     const snapshot: Snapshot | null = settings.snapshots[kind] ?? null;
@@ -143,36 +169,52 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
         [profile.nodes, rows, snapshot]
     );
 
-    const commit = useCallback((next: Settings, note?: string) => {
-        setSettings(next);
+    const warnings = useMemo(() => {
+        const map = new Map<string, PlanWarningKind>();
+        for (const warning of analysePlan(profile, snapshot)) {
+            if (!map.has(warning.id)) map.set(warning.id, warning.kind);
+        }
+        return map;
+    }, [profile, snapshot]);
+
+    const commit = useCallback((target: MenuKind, next: Profile, note?: string) => {
+        props.onProfile(target, next);
         if (note) setStatus(note);
     }, []);
 
+    // 历史里存整份 Profile: 光存 nodes 的话, 启用开关、未列项策略、进程/标题过滤都撤销不了
+    const pushHistory = useCallback(
+        (mergeKey?: string) => setHistory(history => recordHistory(history, { kind, profile }, mergeKey ?? null)),
+        [kind, profile]
+    );
+
     const mutate = useCallback(
-        (nodes: Node[], note?: string, keepSelection = true) => {
-            setPast(history => [...history.slice(-39), { kind, nodes: settings.profiles[kind].nodes }]);
-            setFuture([]);
+        (nodes: Node[], note?: string, keepSelection = true, mergeKey?: string) => {
+            pushHistory(mergeKey);
             if (!keepSelection) setSelected(null);
-            commit({ ...settings, profiles: { ...settings.profiles, [kind]: { ...settings.profiles[kind], nodes, updatedAt: Date.now() } } }, note);
+            commit(kind, { ...profile, nodes, updatedAt: Date.now() }, note);
         },
-        [commit, kind, settings]
+        [commit, kind, profile, pushHistory]
     );
 
     const patchProfile = useCallback(
-        (patch: Partial<Profile>, note?: string) => {
-            commit({ ...settings, profiles: { ...settings.profiles, [kind]: { ...settings.profiles[kind], ...patch } } }, note);
+        (patch: Partial<Profile>, note?: string, mergeKey?: string) => {
+            pushHistory(mergeKey);
+            commit(kind, { ...profile, ...patch, updatedAt: Date.now() }, note);
         },
-        [commit, kind, settings]
+        [commit, kind, profile, pushHistory]
     );
 
-    useEffect(() => {
-        const timer = setTimeout(() => props.onSettings(settings), 260);
-        return () => clearTimeout(timer);
-    }, [settings]);
+    useEffect(() => props.subscribe(setSettings), []);
 
     useEffect(() => {
+        // 撤销跨类型恢复时 setKind 是程序触发的, 不能顺手清掉选中与展开状态
+        if (suppressResetRef.current) {
+            suppressResetRef.current = false;
+            return;
+        }
         setSelected(null);
-        setEditing(null);
+        stopEditing();
         setExpanded([]);
     }, [kind]);
 
@@ -199,17 +241,48 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
     );
 
     const editRow = useCallback(
-        (row: CanvasRow, patch: (node: Node) => Node, note: string) => {
+        (row: CanvasRow, patch: (node: Node) => Node, note: string, mergeKey?: string) => {
             if (!row.virtual) {
-                mutate(updateNode(profile.nodes, row.node.id, patch), note);
+                mutate(updateNode(profile.nodes, row.node.id, patch), note, true, mergeKey);
                 return;
             }
             const anchor = anchorOf(row);
             const node = patch(reidentify(row.node));
-            mutate(insertNode(profile.nodes, node, anchor.parentId, anchor.index), note);
+            mutate(insertNode(profile.nodes, node, anchor.parentId, anchor.index), note, true, mergeKey);
             setSelected(node.id);
         },
         [anchorOf, mutate, profile.nodes]
+    );
+
+    const startRename = useCallback((row: CanvasRow) => {
+        if (row.node.kind === 'sep') return;
+        setSelected(row.key);
+        renamingRef.current = true;
+        setEditing({ key: row.key, value: nodeLabel(row.node, '') });
+        setStatus(t('点一下输入框就能改名字（Ctrl+A 全选），回车保存，Esc 取消', 'Click the field to type (Ctrl+A selects all), Enter saves, Esc cancels'));
+    }, []);
+
+    const asRule = useCallback(
+        (row: CanvasRow): { nodes: Node[]; id: string; fresh: boolean } => {
+            if (!row.virtual) return { nodes: profile.nodes, id: row.node.id, fresh: false };
+            const anchor = anchorOf(row);
+            const node = reidentify(row.node);
+            return { nodes: insertNode(profile.nodes, node, anchor.parentId, anchor.index), id: node.id, fresh: true };
+        },
+        [anchorOf, profile.nodes]
+    );
+
+    const onRowDown = useCallback(
+        (row: CanvasRow): boolean => {
+            const at = Date.now();
+            const previous = clickRef.current;
+            clickRef.current = { key: row.key, at };
+            if (!previous || previous.key !== row.key || at - previous.at > DOUBLE_CLICK_MS) return false;
+            clickRef.current = null;
+            startRename(row);
+            return true;
+        },
+        [startRename]
     );
 
     const offer = useCallback((target: DropTarget) => {
@@ -257,22 +330,34 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
 
             if (target.parentId === '__trash') {
                 if (source.virtual) return;
-                mutate(removeNode(profile.nodes, source.node.id).nodes, t(`已把「${nodeLabel(source.node, '')}」移出规则`, 'Removed from the rules'), false);
+                const name = nodeLabel(source.node, '');
+                mutate(removeNode(profile.nodes, source.node.id).nodes, t(`已把「${name}」移出规则 · Ctrl+Z 撤销`, `Removed “${name}” from the rules · Ctrl+Z undoes it`), false);
                 return;
+            }
+
+            const host = target.parentId === null ? null : rows.find(row => row.node.id === target.parentId && !row.virtual);
+            if (host && host.node.kind === 'group' && host.node.layout === 'row' && source.node.kind === 'group') {
+                setStatus(t('横排里放不下分组：先把它改成「分组」再拖进来', 'A row cannot hold a group: switch the row to 分组 first'));
+                return;
+            }
+
+            if (target.parentId !== null && target.parentId !== '__trash') {
+                const parentId = target.parentId;
+                setExpanded(prev => (prev.includes(parentId) ? prev : [...prev, parentId]));
             }
 
             if (source.virtual) {
                 const node = reidentify(source.node);
-                mutate(insertNode(profile.nodes, node, target.parentId, target.index), t(`已把「${nodeLabel(source.node, '')}」纳入规则`, 'Added to the rules'));
+                mutate(insertNode(profile.nodes, node, target.parentId, target.index), t(`已把「${nodeLabel(source.node, '')}」纳入规则 · Ctrl+Z 撤销`, `Added “${nodeLabel(source.node, '')}” to the rules · Ctrl+Z undoes it`));
                 setSelected(node.id);
                 return;
             }
 
-            const targetIsSelf = !source.virtual && target.parentId === source.parentId && (target.index === source.index || target.index === source.index + 1);
+            const targetIsSelf = target.parentId === source.parentId && (target.index === source.index || target.index === source.index + 1);
             if (targetIsSelf) return;
             const moved = moveNode(profile.nodes, source.node.id, target.parentId, target.index);
-            if (moved === profile.nodes) return;
-            mutate(moved, t('已移动', 'Moved'));
+            if (moved === profile.nodes || orderKey(moved) === orderKey(profile.nodes)) return;
+            mutate(moved, t(`已移动「${nodeLabel(source.node, '')}」 · Ctrl+Z 撤销`, `Moved “${nodeLabel(source.node, '')}” · Ctrl+Z undoes it`));
             setSelected(source.node.id);
         },
         [mutate, profile.nodes, rows]
@@ -282,9 +367,10 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
         const state = armRef.current;
         const target = dropRef.current;
         const active = dragActiveRef.current;
-        if (state && active && target) applyDrop(target, state.sourceKey);
+        const dropped = state !== null && active && target !== null;
+        if (dropped && state && target) applyDrop(target, state.sourceKey);
         endDrag();
-        if (active) setStatus(IDLE_HINT);
+        if (active && !dropped) setStatus(IDLE_HINT);
     }, [applyDrop, endDrag]);
 
     const addNodes = useCallback(
@@ -299,16 +385,16 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
         [mutate, profile.nodes, selectedRow]
     );
 
-    const startRename = useCallback((row: CanvasRow) => {
-        setSelected(row.key);
-        setEditing({ key: row.key, value: nodeLabel(row.node, '') });
-        setStatus(t('点一下输入框就能改名字，回车保存，Esc 取消', 'Click the field to type, Enter saves, Esc cancels'));
+    const stopEditing = useCallback(() => {
+        renamingRef.current = false;
+        setEditing(null);
     }, []);
 
     const commitRename = useCallback(() => {
         const state = editing;
-        setEditing(null);
-        if (!state) return;
+        const open = renamingRef.current;
+        stopEditing();
+        if (!state || !open) return;
         const row = rows.find(entry => entry.key === state.key);
         if (!row) return;
         const value = state.value.trim();
@@ -321,43 +407,31 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
             return;
         }
         editRow(row, node => (node.kind === 'item' ? { ...node, label: value.length > 0 && value !== node.ref?.name ? value : null } : node), t('已重命名', 'Renamed'));
-    }, [editRow, editing, rows]);
+    }, [editRow, editing, rows, stopEditing]);
 
     const importAll = useCallback(() => {
         if (!snapshot) return;
-        const nodes = profile.nodes.slice();
-        let anchor = { parentId: null as string | null, index: nodes.length };
-        let added = 0;
-        for (let i = rows.length - 1; i >= 0; i -= 1) {
-            const row = rows[i];
-            if (row.virtual) {
-                nodes.splice(anchor.index, 0, reidentify(row.node));
-                added += 1;
-                continue;
-            }
-            if (row.parentId === null) anchor = { parentId: null, index: row.index };
-        }
+        const { nodes, added } = adoptUnmanaged(profile, snapshot);
         if (added === 0) return;
-        mutate(nodes, t(`已把 ${added} 个原生项纳入规则`, `Added ${added} native items`));
-    }, [mutate, profile.nodes, rows, snapshot]);
+        mutate(nodes, t(`已把 ${added} 项未纳入的原生项收进规则 · Ctrl+Z 撤销`, `Added ${added} native items to the rules · Ctrl+Z undoes it`));
+    }, [mutate, profile, snapshot]);
 
-    const undo = useCallback(() => {
-        const last = past[past.length - 1];
-        if (!last) return;
-        setPast(prev => prev.slice(0, -1));
-        setFuture(prev => [...prev, { kind, nodes: settings.profiles[kind].nodes }]);
-        setKind(last.kind);
-        commit({ ...settings, profiles: { ...settings.profiles, [last.kind]: { ...settings.profiles[last.kind], nodes: last.nodes } } }, t('已撤销', 'Undone'));
-    }, [commit, kind, past, settings]);
+    const travel = useCallback(
+        (step: typeof undoHistory, note: string) => {
+            const moved = step(history, settings.profiles);
+            if (!moved) return;
+            setHistory(moved.history);
+            if (moved.restore.kind !== kind) {
+                suppressResetRef.current = true;
+                setKind(moved.restore.kind);
+            }
+            commit(moved.restore.kind, moved.restore.profile, note);
+        },
+        [commit, history, kind, settings]
+    );
 
-    const redo = useCallback(() => {
-        const next = future[future.length - 1];
-        if (!next) return;
-        setFuture(prev => prev.slice(0, -1));
-        setPast(prev => [...prev, { kind, nodes: settings.profiles[kind].nodes }]);
-        setKind(next.kind);
-        commit({ ...settings, profiles: { ...settings.profiles, [next.kind]: { ...settings.profiles[next.kind], nodes: next.nodes } } }, t('已重做', 'Redone'));
-    }, [commit, future, kind, settings]);
+    const undo = useCallback(() => travel(undoHistory, t('已撤销', 'Undone')), [travel]);
+    const redo = useCallback(() => travel(redoHistory, t('已重做', 'Redone')), [travel]);
 
     const toggleExpand = useCallback((id: string) => {
         setExpanded(prev => (prev.includes(id) ? prev.filter(entry => entry !== id) : [...prev, id]));
@@ -380,50 +454,80 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
     );
 
     const removeSelected = useCallback(() => {
-        if (!selectedRow || selectedRow.virtual) return;
-        setEditing(null);
-        mutate(removeNode(profile.nodes, selectedRow.node.id).nodes, t('已删除', 'Deleted'), false);
-    }, [mutate, profile.nodes, selectedRow]);
+        if (!selectedRow) return;
+        stopEditing();
+        const name = nodeLabel(selectedRow.node, t('未命名', 'Unnamed'));
+        const base = asRule(selectedRow);
+        if (selectedRow.virtual) {
+            mutate(updateNode(base.nodes, base.id, toggledHidden), t(`已隐藏「${name}」· Ctrl+Z 撤销`, `Hid “${name}” · Ctrl+Z undoes it`), false);
+            setSelected(base.id);
+            return;
+        }
+        mutate(removeNode(base.nodes, base.id).nodes, t(`已删除「${name}」· Ctrl+Z 撤销`, `Deleted “${name}” · Ctrl+Z undoes it`), false);
+    }, [asRule, mutate, selectedRow, stopEditing]);
 
     const duplicateSelected = useCallback(() => {
-        if (!selectedRow || selectedRow.virtual) return;
-        const result = duplicateNode(profile.nodes, selectedRow.node.id);
-        mutate(result.nodes, t('已复制', 'Duplicated'));
+        if (!selectedRow) return;
+        const name = nodeLabel(selectedRow.node, t('未命名', 'Unnamed'));
+        const base = asRule(selectedRow);
+        const result = duplicateNode(base.nodes, base.id);
+        mutate(result.nodes, t(`已复制「${name}」并纳入规则 · Ctrl+Z 撤销`, `Duplicated “${name}” into the rules · Ctrl+Z undoes it`));
         if (result.id) setSelected(result.id);
-    }, [mutate, profile.nodes, selectedRow]);
+    }, [asRule, mutate, selectedRow]);
 
     const moveSelected = useCallback(
         (delta: number) => {
-            if (!selectedRow || selectedRow.virtual) return;
-            const found = locate(profile.nodes, selectedRow.node.id);
+            if (!selectedRow) return;
+            const name = nodeLabel(selectedRow.node, t('未命名', 'Unnamed'));
+            const base = asRule(selectedRow);
+            const found = locate(base.nodes, base.id);
             if (!found) return;
             const parentId = found.parent ? found.parent.id : null;
-            mutate(moveNode(profile.nodes, selectedRow.node.id, parentId, clampIndex(found.index + delta, found.list.length)), t('已调整位置', 'Moved'));
+            // moveNode 的 index 是"摘除之前"的槽位: 往下挪一格要传 index+2
+            const slot = delta > 0 ? found.index + delta + 1 : found.index + delta;
+            const moved = moveNode(base.nodes, base.id, parentId, clampIndex(slot, found.list.length));
+            if (moved === base.nodes || (orderKey(moved) === orderKey(profile.nodes) && !base.fresh)) return;
+            mutate(moved, t(`已${delta > 0 ? '下' : '上'}移「${name}」 · Ctrl+Z 撤销`, `Moved “${name}” ${delta > 0 ? 'down' : 'up'} · Ctrl+Z undoes it`));
+            setSelected(base.id);
         },
-        [mutate, profile.nodes, selectedRow]
+        [asRule, mutate, profile.nodes, selectedRow]
+    );
+
+    const moveSelectedTo = useCallback(
+        (edge: 'start' | 'end') => {
+            if (!selectedRow) return;
+            const name = nodeLabel(selectedRow.node, t('未命名', 'Unnamed'));
+            const base = asRule(selectedRow);
+            const moved = moveNode(base.nodes, base.id, null, edge === 'start' ? 0 : base.nodes.length);
+            if (moved === base.nodes || (orderKey(moved) === orderKey(profile.nodes) && !base.fresh)) return;
+            const to = edge === 'start' ? t('菜单开头', 'the top of the menu') : t('菜单末尾', 'the end of the menu');
+            mutate(moved, t(`已把「${name}」移到${to} · Ctrl+Z 撤销`, `Moved “${name}” to ${to} · Ctrl+Z undoes it`));
+            setSelected(base.id);
+        },
+        [asRule, mutate, profile.nodes, selectedRow]
     );
 
     const stepSelection = useCallback(
         (delta: number) => {
             if (rows.length === 0) return;
             const at = selected ? rows.findIndex(row => row.key === selected) : -1;
-            const next = at === -1 ? (delta > 0 ? 0 : rows.length - 1) : clampIndex(at + delta, rows.length);
-            setSelected(rows[next].key);
+            setSelected(rows[stepIndex(at, delta, rows.length)].key);
         },
         [rows, selected]
     );
 
     const onKey = useCallback(
         (key: number, shift: boolean, ctrl: boolean, alt: boolean, meta: boolean): boolean => {
+            if (isTyping()) return false;
             const action: ShortcutAction | null = shortcutFor(
                 key,
                 { shift, ctrl, alt, super: meta },
                 {
                     hasSelection: selected !== null,
                     editing: editing !== null,
-                    canUndo: past.length > 0,
-                    canRedo: future.length > 0,
-                    canRemove: selectedRow !== null && !selectedRow.virtual
+                    canUndo: history.past.length > 0,
+                    canRedo: history.future.length > 0,
+                    canRemove: selectedRow !== null
                 }
             );
             if (!action) return false;
@@ -438,29 +542,31 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
             else if (action === 'rename' && selectedRow) startRename(selectedRow);
             else if (action === 'deselect') {
                 const wasEditing = editing !== null;
-                setEditing(null);
+                stopEditing();
                 if (!wasEditing) setSelected(null);
             }
             return true;
         },
-        [duplicateSelected, editing, future.length, moveSelected, past.length, redo, removeSelected, selected, selectedRow, startRename, stepSelection, undo]
+        [duplicateSelected, editing, history, moveSelected, redo, removeSelected, selected, selectedRow, startRename, stepSelection, stopEditing, undo]
     );
 
     const renderRows = (parentId: string | null, keyPrefix: string): ReactNode[] => {
         const level = rows.filter(row => row.parentId === parentId);
         const out: ReactNode[] = [];
+        const lineAt = (slot: number) => drop !== null && drop.mode !== 'inside' && drop.parentId === parentId && drop.slot === slot;
         let realBefore = 0;
-        level.forEach(row => {
+        level.forEach((row, position) => {
             const insertBefore = row.virtual ? realBefore : row.index;
             const insertAfter = row.virtual ? realBefore : row.index + 1;
             if (!row.virtual) realBefore = row.index + 1;
-            const isDropBefore = drop && drop.parentId === parentId && drop.index === insertBefore && drop.mode === 'before';
-            if (isDropBefore) out.push(<DropLine key={`${keyPrefix}-line-${row.key}`} c={c} />);
+            if (lineAt(position)) out.push(<DropLine key={`${keyPrefix}-line-${row.key}`} c={c} />);
+            const warningKind = row.virtual ? null : warnings.get(row.node.id) ?? null;
             out.push(
                 <RowView
                     key={row.key}
                     c={c}
                     row={row}
+                    position={position}
                     insertBefore={insertBefore}
                     insertAfter={insertAfter}
                     selected={selected === row.key}
@@ -469,10 +575,12 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
                     expanded={row.node.kind === 'group' && expanded.includes(row.node.id)}
                     active={drag !== null}
                     editing={editing && editing.key === row.key ? editing.value : null}
+                    warning={warningKind ? WARNING_TEXT[warningKind] : null}
                     onEditValue={value => setEditing(prev => (prev ? { ...prev, value } : prev))}
                     onCommitEdit={commitRename}
-                    onCancelEdit={() => setEditing(null)}
+                    onCancelEdit={stopEditing}
                     onSelect={row => selectRow(row)}
+                    onRowDown={onRowDown}
                     onArm={arm}
                     onMove={noteArmMove}
                     onUp={finishDrag}
@@ -480,7 +588,17 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
                     claim={claim}
                     isClaimed={() => claimRef.current !== null}
                     onToggleExpand={toggleExpand}
-                    onToggleHidden={target => editRow(target, toggledHidden, t('已切换显示', 'Visibility toggled'))}
+                    onToggleHidden={target => {
+                        const name = nodeLabel(target.node, t('未命名', 'Unnamed'));
+                        const wasHidden = target.node.kind !== 'sep' && target.node.hidden;
+                        return editRow(
+                            target,
+                            toggledHidden,
+                            wasHidden
+                                ? t(`已取消隐藏「${name}」· Ctrl+Z 撤销`, `Showed “${name}” again · Ctrl+Z undoes it`)
+                                : t(`已隐藏「${name}」· Ctrl+Z 撤销`, `Hid “${name}” · Ctrl+Z undoes it`)
+                        );
+                    }}
                     onRename={startRename}
                 />
             );
@@ -495,9 +613,7 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
                 );
             }
         });
-        const realCount = level.filter(row => !row.virtual).length;
-        const isDropAfter = drop && drop.parentId === parentId && drop.index === realCount && drop.mode === 'after' && realCount > 0;
-        if (isDropAfter) out.push(<DropLine key={`${keyPrefix}-line-end`} c={c} />);
+        if (level.length > 0 && lineAt(level.length)) out.push(<DropLine key={`${keyPrefix}-line-end`} c={c} />);
         return out;
     };
 
@@ -518,8 +634,8 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
                 <flex width={CANVAS_WIDTH} horizontal={false} alignItems="stretch" padding={12} gap={8} backgroundColor={c.canvasBg}>
                     <CanvasToolbar
                         c={c}
-                        canUndo={past.length > 0}
-                        canRedo={future.length > 0}
+                        canUndo={history.past.length > 0}
+                        canRedo={history.future.length > 0}
                         onUndo={undo}
                         onRedo={redo}
                         onAddGroup={layout => addNodes(() => groupNode(layout, layout === 'row' ? t('横排', 'Row') : t('分组', 'Group')), t('已新建分组', 'Group created'))}
@@ -539,7 +655,8 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
                         />
                     ) : null}
 
-                    {snapshot === null ? (                        <Card c={c} flexGrow={1}>
+                    {snapshot === null ? (
+                        <Card c={c} flexGrow={1}>
                             <EmptyState
                                 c={c}
                                 icon={Icons.info}
@@ -577,7 +694,7 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
                                     ) : (
                                         renderRows(null, 'root')
                                     )}
-                                    <MenuTail c={c} offer={offer} active={drag !== null} index={profile.nodes.length} />
+                                    <MenuTail c={c} offer={offer} active={drag !== null} index={profile.nodes.length} slot={rows.filter(row => row.parentId === null).length} />
                                 </flex>
                             </Card>
 
@@ -605,60 +722,50 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
                     onEdit={editRow}
                     onPatchProfile={patchProfile}
                     onImport={importAll}
-                    onClear={() => mutate([], t('已清空规则', 'Rules cleared'), false)}
+                    onClear={() => mutate([], t('已清空规则 · Ctrl+Z 撤销', 'Rules cleared · Ctrl+Z undoes it'), false)}
                     onDuplicate={duplicateSelected}
                     onRemove={removeSelected}
                     onUnwrap={() => {
                         if (!selectedRow || selectedRow.virtual) return;
-                        mutate(unwrapGroup(profile.nodes, selectedRow.node.id), t('已解散分组', 'Group dissolved'));
+                        mutate(unwrapGroup(profile.nodes, selectedRow.node.id), t(`已解散「${nodeLabel(selectedRow.node, '')}」· Ctrl+Z 撤销`, `Dissolved “${nodeLabel(selectedRow.node, '')}” · Ctrl+Z undoes it`));
                     }}
                     onWrap={layout => {
                         if (!selectedRow) return;
-                        if (selectedRow.virtual) {
-                            const anchor = anchorOf(selectedRow);
-                            const group = groupNode(layout, layout === 'row' ? t('横排', 'Row') : t('分组', 'Group'));
-                            group.children = [reidentify(selectedRow.node)];
-                            mutate(insertNode(profile.nodes, group, anchor.parentId, anchor.index), t('已收纳进新分组', 'Wrapped in a new group'));
-                            setSelected(group.id);
-                            setExpanded(prev => [...prev, group.id]);
-                            return;
-                        }
-                        const node = selectedRow.node;
-                        const found = locate(profile.nodes, node.id);
-                        if (!found) return;
-                        const group = groupNode(layout, layout === 'row' ? t('横排', 'Row') : t('分组', 'Group'));
-                        group.children = [node];
-                        const parentId = found.parent ? found.parent.id : null;
-                        let next = removeNode(profile.nodes, node.id).nodes;
-                        next = insertNode(next, group, parentId, clampIndex(found.index, nodesOf(next, parentId).length));
-                        mutate(next, t('已收纳进新分组', 'Wrapped in a new group'));
-                        setSelected(group.id);
-                        setExpanded(prev => [...prev, group.id]);
+                        const name = nodeLabel(selectedRow.node, t('未命名', 'Unnamed'));
+                        const base = asRule(selectedRow);
+                        const wrapped = wrapInGroup(base.nodes, [base.id], layout, layout === 'row' ? t('横排', 'Row') : t('分组', 'Group'));
+                        if (!wrapped.groupId) return;
+                        mutate(wrapped.nodes, t(`已把「${name}」收纳进新分组 · Ctrl+Z 撤销`, `Wrapped “${name}” in a new group · Ctrl+Z undoes it`));
+                        setSelected(wrapped.groupId);
+                        setExpanded(prev => [...prev, wrapped.groupId]);
                     }}
                     onMove={moveSelected}
+                    onMoveTo={moveSelectedTo}
                     onMoveOut={() => {
                         if (!selectedRow || selectedRow.virtual) return;
                         const found = locate(profile.nodes, selectedRow.node.id);
                         if (!found || !found.parent) return;
                         const outer = locate(profile.nodes, found.parent.id);
                         if (!outer) return;
-                        mutate(moveNode(profile.nodes, selectedRow.node.id, outer.parent ? outer.parent.id : null, outer.index + 1), t('已移出分组', 'Moved out of the group'));
+                        const parent = found.parent;
+                        mutate(moveNode(profile.nodes, selectedRow.node.id, outer.parent ? outer.parent.id : null, outer.index + 1), t(`已把「${nodeLabel(selectedRow.node, '')}」移出「${nodeLabel(parent, '')}」· Ctrl+Z 撤销`, `Moved “${nodeLabel(selectedRow.node, '')}” out of “${nodeLabel(parent, '')}” · Ctrl+Z undoes it`));
                     }}
                 />
             </flex>
 
-            <StatusBar c={c} status={status} stats={stats} tone={toneColor('info', c)} />
+            <StatusBar c={c} status={status} tone={toneColor('info', c)} />
         </flex>
     );
 });
 
 const ShortcutHints = ({ c }: { c: ReturnType<typeof fluent> }) => {
     const rows = [
-        { keys: 'Ctrl+Z / Ctrl+Y', text: t('撤销 / 重做', 'Undo / redo') },
-        { keys: 'Ctrl+D / Ctrl+Del', text: t('复制 / 删除选中的项', 'Duplicate / delete the selection') },
+        { keys: 'Ctrl+Z / Ctrl+Y', text: t('撤销 / 重做（改过的开关和过滤也能撤销）', 'Undo / redo, toggles and filters included') },
+        { keys: 'Ctrl+D / Ctrl+Del', text: t('复制 / 删除选中的项；原生行会先纳入规则', 'Duplicate / delete the selection; native rows join the rules first') },
         { keys: 'Ctrl+↑ ↓', text: t('把选中的项上下移动', 'Move the selection up or down') },
         { keys: 'Alt+↑ ↓', text: t('上下选择行', 'Select the row above or below') },
         { keys: 'Enter / Esc', text: t('改名 / 取消选中', 'Rename / clear the selection') },
+        { keys: t('双击', 'Double click'), text: t('就地改名：点一下输入框就能打字，Ctrl+A 全选', 'Rename in place: click the field to type, Ctrl+A selects all') },
         {
             keys: t('拖拽', 'Drag'),
             text: t('拖动排序；拖到分组标题中间放进分组；拖到底部横条移出规则', 'Reorder; onto a group title to nest; onto the bottom bar to remove the rule')
@@ -696,7 +803,7 @@ const TrashZone = ({ c, offer, active, virtualCount }: { c: ReturnType<typeof fl
             onMouseEnter={hover.onMouseEnter}
             onMouseLeave={hover.onMouseLeave}
             onMouseMove={() => {
-                if (active) offer({ parentId: '__trash', index: 0, mode: 'inside' });
+                if (active) offer({ parentId: '__trash', index: 0, slot: -1, mode: 'inside' });
             }}
         >
             {iconElement(Icons.trash, 12, hovered ? c.dangerText : c.textSecondary)}
@@ -704,7 +811,7 @@ const TrashZone = ({ c, offer, active, virtualCount }: { c: ReturnType<typeof fl
             <flex flexGrow={1} />
             <Text
                 c={c}
-                text={virtualCount > 0 ? t(`${virtualCount} 项原生项还没被规则覆盖`, `${virtualCount} native items not covered yet`) : t('全部原生项都已纳入规则', 'Every native item is covered')}
+                text={virtualCount > 0 ? t(`${virtualCount} 项未纳入的原生项`, `${virtualCount} native items unmanaged`) : t('原生项都已在规则里', 'Every native item is managed')}
                 fontSize={10}
                 color={c.textTertiary}
             />
@@ -732,7 +839,7 @@ const GroupTail = ({ c, groupId, index, offer, active }: { c: ReturnType<typeof 
             onMouseEnter={hover.onMouseEnter}
             onMouseLeave={hover.onMouseLeave}
             onMouseMove={() => {
-                if (active) offer({ parentId: groupId, index, mode: 'inside' });
+                if (active) offer({ parentId: groupId, index, slot: -1, mode: 'inside' });
             }}
         >
             <Text c={c} text={hovered ? t('放进这个分组', 'Drop into this group') : t('拖到这里 = 放进分组', 'Drop here to add into the group')} fontSize={10} color={hovered ? c.accent : c.textTertiary} />
@@ -740,7 +847,7 @@ const GroupTail = ({ c, groupId, index, offer, active }: { c: ReturnType<typeof 
     );
 };
 
-const MenuTail = ({ c, offer, active, index }: { c: ReturnType<typeof fluent>; offer: (t: DropTarget) => void; active: boolean; index: number }) => {
+const MenuTail = ({ c, offer, active, index, slot }: { c: ReturnType<typeof fluent>; offer: (t: DropTarget) => void; active: boolean; index: number; slot: number }) => {
     const hover = useHoverActive();
     const hovered = active && hover.isHovered;
     return (
@@ -754,7 +861,7 @@ const MenuTail = ({ c, offer, active, index }: { c: ReturnType<typeof fluent>; o
             onMouseEnter={hover.onMouseEnter}
             onMouseLeave={hover.onMouseLeave}
             onMouseMove={() => {
-                if (active) offer({ parentId: null, index, mode: 'after' });
+                if (active) offer({ parentId: null, index, slot, mode: 'after' });
             }}
         >
             <Text c={c} text={!active ? '' : hovered ? t('放到菜单末尾', 'Move to the end') : t('菜单末尾', 'End of menu')} fontSize={11} color={hovered ? c.accent : c.textTertiary} />
@@ -791,6 +898,7 @@ const TinyButton = ({ c, icon, onClick, tone, size = 22, disabled }: { c: Return
 type RowProps = {
     c: ReturnType<typeof fluent>;
     row: CanvasRow;
+    position: number;
     insertBefore: number;
     insertAfter: number;
     selected: boolean;
@@ -799,10 +907,12 @@ type RowProps = {
     expanded: boolean;
     active: boolean;
     editing: string | null;
+    warning: string | null;
     onEditValue: (value: string) => void;
     onCommitEdit: () => void;
     onCancelEdit: () => void;
     onSelect: (row: CanvasRow) => void;
+    onRowDown: (row: CanvasRow) => boolean;
     onArm: (key: string, label: string) => void;
     onMove: (overRow: string) => void;
     onUp: () => void;
@@ -829,8 +939,8 @@ const RowView = memo((props: RowProps) => {
                 {nodeGlyph(row, c.text, 15)}
                 <TextField
                     c={c}
+                    width={556}
                     value={props.editing}
-                    flexGrow={1}
                     onChange={props.onEditValue}
                     onBlur={props.onCommitEdit}
                     onKeyDown={key => {
@@ -872,6 +982,7 @@ const RowView = memo((props: RowProps) => {
             onMouseLeave={hover.onMouseLeave}
             onMouseDown={() => {
                 if (props.isClaimed()) return;
+                if (props.onRowDown(row)) return;
                 props.onSelect(row);
                 props.onArm(row.key, label);
             }}
@@ -880,13 +991,14 @@ const RowView = memo((props: RowProps) => {
                 props.onMove(row.key);
                 if (!props.active || props.dragging) return;
                 if (isGroup && y > ROW_HEIGHT * 0.28 && y < ROW_HEIGHT * 0.72) {
-                    props.offer({ parentId: node.id, index: 0, mode: 'inside' });
+                    props.offer({ parentId: node.id, index: 0, slot: -1, mode: 'inside' });
                     return;
                 }
                 const below = y >= ROW_HEIGHT / 2;
                 props.offer({
                     parentId: row.parentId,
                     index: below ? props.insertAfter : props.insertBefore,
+                    slot: below ? props.position + 1 : props.position,
                     mode: below ? 'after' : 'before'
                 });
             }}
@@ -902,12 +1014,13 @@ const RowView = memo((props: RowProps) => {
             </flex>
 
             {row.virtual ? <Chip c={c} label={t('原生', 'native')} fg={c.textTertiary} bg={c.subtle} /> : null}
-            {isGroup ? <Chip c={c} label={props.expanded ? (node.layout === 'row' ? t('横排', 'row') : t('分组', 'group')) : t(` 项`, ` items`)} fg={props.expanded ? c.accent : c.textSecondary} bg={props.expanded ? c.accentSoft : c.subtle} icon={props.expanded ? (node.layout === 'row' ? Icons.rowStack : Icons.folder) : Icons.folder} /> : null}
+            {isGroup ? <Chip c={c} label={props.expanded ? (node.layout === 'row' ? t('横排', 'row') : t('分组', 'group')) : t(`${countItems(node.children)} 项规则项`, `${countItems(node.children)} rules`)} fg={props.expanded ? c.accent : c.textSecondary} bg={props.expanded ? c.accentSoft : c.subtle} icon={props.expanded ? (node.layout === 'row' ? Icons.rowStack : Icons.folder) : Icons.folder} /> : null}
             {node.kind === 'item' && !row.virtual && node.ref === null ? <Chip c={c} label={t('命令', 'command')} fg={c.successText} bg={c.successSoft} icon={Icons.command} /> : null}
             {node.kind === 'item' && node.ref?.hasSubmenu ? <Chip c={c} label={t('子菜单', 'submenu')} fg={c.textSecondary} bg={c.subtle} icon={Icons.layers} /> : null}
             {hidden ? <Chip c={c} label={t('隐藏', 'hidden')} fg={c.warningText} bg={c.warningSoft} icon={Icons.eyeOff} /> : null}
+            {props.warning ? <Chip c={c} label={props.warning} fg={c.warningText} bg={c.warningSoft} icon={Icons.warning} /> : null}
 
-           {isSep ? null : (
+            {isSep ? null : (
                 <TinyButton
                     c={c}
                     icon={Icons.pencil}
@@ -954,10 +1067,10 @@ const Header = ({
             </flex>
             <flex horizontal={false} alignItems="start" gap={0}>
                 <Text c={c} text={KIND_META[kind].label} fontSize={14} fontWeight={600} />
-                <Text c={c} text={`${stats.managed} ${t('项受规则控制', 'managed')} · ${stats.native} ${t('项原生', 'native')}`} fontSize={10} color={c.textTertiary} />
+                <Text c={c} text={t(`${stats.managed} 项规则项 · ${stats.virtual} 项未纳入的原生项`, `${stats.managed} rules · ${stats.virtual} native items unmanaged`)} fontSize={10} color={c.textTertiary} />
             </flex>
             <flex flexGrow={1} />
-           <flex
+            <flex
                 horizontal={true}
                 alignItems="center"
                 gap={7}
@@ -1020,7 +1133,7 @@ const RailItem = ({ c, kind, selected, profile, captured, onSelect }: { c: Retur
             {iconElement(meta.icon, 15, profile.enabled ? c.accent : c.textSecondary)}
             <flex horizontal={false} flexGrow={1} alignItems="start" gap={0}>
                 <Text c={c} text={meta.label} fontSize={12} fontWeight={selected ? 600 : 400} maxWidth={120} />
-                <Text c={c} text={captured ? `${managed} ${t('项规则', 'rules')}` : t('未采集', 'not captured')} fontSize={10} color={c.textTertiary} />
+                <Text c={c} text={captured ? t(`${managed} 项规则项`, `${managed} rules`) : t('未采集', 'not captured')} fontSize={10} color={c.textTertiary} />
             </flex>
             {profile.enabled ? <Badge c={c} text="ON" fg={c.successText} bg={c.successSoft} /> : null}
         </flex>
@@ -1065,7 +1178,7 @@ const CanvasToolbar = ({
         <Button
             c={c}
             icon={Icons.importFile}
-            label={virtualCount > 0 ? t(`全部纳入规则 (${virtualCount})`, `Add all (${virtualCount})`) : t('已全部纳入', 'All covered')}
+            label={virtualCount > 0 ? t(`全部纳入规则 (${virtualCount} 项)`, `Add all (${virtualCount})`) : t('已全部纳入', 'All covered')}
             variant="standard"
             onClick={onImport}
             disabled={!hasSnapshot || virtualCount === 0}
@@ -1073,13 +1186,12 @@ const CanvasToolbar = ({
     </flex>
 );
 
-const StatusBar = ({ c, status, tone, stats }: { c: ReturnType<typeof fluent>; status: string; tone: { fg: string; bg: string }; stats: { native: number; managed: number; virtual: number } }) => (
+const StatusBar = ({ c, status, tone }: { c: ReturnType<typeof fluent>; status: string; tone: { fg: string; bg: string } }) => (
     <flex horizontal={true} height={28} alignItems="center" gap={8} paddingLeft={14} paddingRight={14} backgroundColor={c.headerBg} borderColor={c.divider} borderWidth={1}>
         {iconElement(Icons.info, 11, tone.fg)}
         <flex flexGrow={1}>
-            <Text c={c} text={status} fontSize={11} color={c.textSecondary} maxWidth={760} truncate={120} />
+            <Text c={c} text={status} fontSize={11} color={c.textSecondary} maxWidth={1120} truncate={160} />
         </flex>
-        <Text c={c} text={`${stats.managed} ${t('条规则', 'rules')} · ${stats.virtual} ${t('项未纳入', 'unmanaged')}`} fontSize={10} color={c.textTertiary} />
     </flex>
 );
 
@@ -1101,6 +1213,7 @@ const Inspector = ({
     onUnwrap,
     onWrap,
     onMove,
+    onMoveTo,
     onMoveOut
 }: {
     c: ReturnType<typeof fluent>;
@@ -1111,8 +1224,8 @@ const Inspector = ({
     stats: { native: number; managed: number; virtual: number };
     customSvg: string;
     onCustomSvg: (svg: string) => void;
-    onEdit: (row: CanvasRow, patch: (node: Node) => Node, note: string) => void;
-    onPatchProfile: (patch: Partial<Profile>, note?: string) => void;
+    onEdit: (row: CanvasRow, patch: (node: Node) => Node, note: string, mergeKey?: string) => void;
+    onPatchProfile: (patch: Partial<Profile>, note?: string, mergeKey?: string) => void;
     onImport: () => void;
     onClear: () => void;
     onDuplicate: () => void;
@@ -1120,192 +1233,239 @@ const Inspector = ({
     onUnwrap: () => void;
     onWrap: (layout: 'fold' | 'row') => void;
     onMove: (delta: number) => void;
+    onMoveTo: (edge: 'start' | 'end') => void;
     onMoveOut: () => void;
-}) => (
-    <flex
-        horizontal={false}
-        width={INSPECTOR_WIDTH}
-        flexShrink={0}
-        alignItems="stretch"
-        padding={10}
-        gap={8}
-        backgroundColor={c.railBg}
-        borderColor={c.divider}
-        borderWidth={1}
-        enableScrolling={true}
-        cropOverflow={true}
-    >
-        {row === null ? (
-            <KindPanel c={c} profile={profile} kind={kind} snapshot={snapshot} stats={stats} onPatch={onPatchProfile} onImport={onImport} onClear={onClear} />
-        ) : (
-            <Fragment>
-                <flex horizontal={true} alignItems="center" gap={8} paddingTop={2} paddingBottom={2}>
-                    {nodeGlyph(row, c.text, 17)}
-                    <flex horizontal={false} alignItems="start" gap={0} flexGrow={1}>
-                        <Text c={c} text={nodeLabel(row.node, t('未命名', 'Unnamed'))} fontSize={13} fontWeight={600} maxWidth={210} truncate={24} />
-                        <Text
-                            c={c}
-                            text={
-                                row.virtual
-                                    ? t('原生项 · 还没纳入规则', 'Native item, not in the rules')
-                                    : row.node.kind === 'group'
-                                      ? t('分组', 'Group')
-                                      : row.node.kind === 'sep'
-                                        ? t('分隔线', 'Separator')
-                                        : row.node.ref === null
-                                          ? t('自定义命令', 'Custom command')
-                                          : t('规则里的原生项', 'Native item in the rules')
-                            }
-                            fontSize={10}
-                            color={c.textTertiary}
-                        />
-                    </flex>
-                </flex>
-
-                {row.node.kind !== 'sep' ? (
-                    <Card c={c} padding={9} gap={8}>
-                        {row.node.kind === 'group' ? (
-                            <FieldRow c={c} stacked={true} label={t('分组名称', 'Group name')}>
-                                <TextField
+}) => {
+    const node = row === null ? null : row.node;
+    const ref = node !== null && node.kind === 'item' ? node.ref : null;
+    const match = ref === null ? null : [ref.wID === undefined ? undefined : String(ref.wID), ref.nameResid, ref.originName, ref.hotkey];
+    const matched = match !== null && match.some(value => value !== undefined && value !== '');
+    const footerRows = row === null ? 2 : 4;
+    return (
+        <flex horizontal={false} width={INSPECTOR_WIDTH} flexShrink={0} alignItems="stretch" justifyContent="end" cropOverflow={true} backgroundColor={c.railBg} borderColor={c.divider} borderWidth={1}>
+            <flex horizontal={false} flexGrow={1} alignItems="stretch" padding={10} gap={6} enableScrolling={true} cropOverflow={true} maxHeight={formMaxHeight(footerRows)}>
+                {row === null ? (
+                    <KindPanel c={c} profile={profile} kind={kind} snapshot={snapshot} stats={stats} onPatch={onPatchProfile} />
+                ) : (
+                    <Fragment>
+                        <flex horizontal={true} alignItems="center" gap={8} paddingTop={2} paddingBottom={2}>
+                            {nodeGlyph(row, c.text, 17)}
+                            <flex horizontal={false} alignItems="start" gap={0} flexGrow={1}>
+                                <Text c={c} text={nodeLabel(row.node, t('未命名', 'Unnamed'))} fontSize={13} fontWeight={600} maxWidth={210} truncate={24} />
+                                <Text
                                     c={c}
-                                    value={row.node.label}
-                                    onChange={value => onEdit(row, node => (node.kind === 'group' ? { ...node, label: value } : node), t('已重命名分组', 'Group renamed'))}
-                                    placeholder={t('分组', 'Group')}
+                                    text={
+                                        row.virtual
+                                            ? t('原生项 · 还没纳入规则', 'Native item, not in the rules')
+                                            : row.node.kind === 'group'
+                                              ? t('分组', 'Group')
+                                              : row.node.kind === 'sep'
+                                                ? t('分隔线', 'Separator')
+                                                : row.node.ref === null
+                                                  ? t('自定义命令', 'Custom command')
+                                                  : t('规则里的原生项', 'Native item in the rules')
+                                    }
+                                    fontSize={10}
+                                    color={c.textTertiary}
                                 />
-                            </FieldRow>
-                        ) : (
-                            <FieldRow c={c} stacked={true} label={t('显示名称', 'Display name')} hint={row.node.ref ? t(`原生名称：${row.node.ref.name}`, `native: ${row.node.ref.name}`) : undefined}>
-                                <TextField
-                                    c={c}
-                                    value={row.node.label ?? row.node.ref?.name ?? ''}
-                                    onChange={value => onEdit(row, node => (node.kind === 'item' ? { ...node, label: value.length > 0 && value !== node.ref?.name ? value : null } : node), t('已重命名', 'Renamed'))}
-                                    placeholder={t('留空使用原生名称', 'Empty keeps the native name')}
-                                />
-                            </FieldRow>
-                        )}
+                            </flex>
+                        </flex>
 
-                        {row.node.kind === 'group' ? (
-                            <FieldRow
+                        {row.node.kind === 'sep' ? (
+                            <Text
                                 c={c}
-                                stacked={true}
-                                label={t('布局', 'Layout')}
-                                hint={
-                                    row.node.layout === 'row'
-                                        ? t('横排是一排按钮的容器，名称只在编辑器里用', 'A row is a container for one line of buttons; the name is editor-only')
-                                        : t('分组收进子菜单，名称就是子菜单标题', 'A group folds into a submenu; the name is the submenu title')
-                                }
-                            >
-                                <SegmentedControl
-                                    c={c}
-                                    value={row.node.layout}
-                                    onChange={layout => onEdit(row, node => (node.kind === 'group' ? { ...node, layout } : node), t('已切换布局', 'Layout changed'))}
-                                    options={[
-                                        { value: 'fold' as const, label: t('分组', 'Group'), icon: Icons.folder },
-                                        { value: 'row' as const, label: t('横排', 'Row'), icon: Icons.rowStack }
-                                    ]}
-                                />
-                            </FieldRow>
-                        ) : null}
-
-                        <ToggleSwitch
-                            c={c}
-                            value={row.node.hidden}
-                            onChange={() => onEdit(row, toggledHidden, t('已切换显示', 'Visibility toggled'))}
-                            label={t('隐藏这一项', 'Hide this item')}
-                            description={t('隐藏后 breeze 不再显示它', 'Hidden items are not rendered by breeze')}
-                        />
-                        {row.node.kind === 'item' ? (
-                            <ToggleSwitch
-                                c={c}
-                                value={row.node.disabled}
-                                onChange={() => onEdit(row, node => (node.kind === 'item' ? { ...node, disabled: !node.disabled } : node), t('已切换禁用', 'Disabled toggled'))}
-                                label={t('禁用', 'Disabled')}
-                                description={t('置灰且不可点；原生已禁用的项始终禁用', 'Greyed out and unclickable; natively disabled items stay disabled')}
+                                text={t(
+                                    '分隔线没有名字和图标。开头、连续出现或者落在最后的分隔线不会出现在真实菜单里。',
+                                    'A separator has no name or icon. Leading, repeated or trailing ones never show up in the real menu.'
+                                )}
+                                fontSize={10}
+                                color={c.textTertiary}
+                                maxWidth={268}
                             />
-                        ) : null}
-                    </Card>
-                ) : null}
-
-                {row.node.kind !== 'sep' ? <IconPicker c={c} row={row} customSvg={customSvg} onCustomSvg={onCustomSvg} onEdit={onEdit} /> : null}
-
-                {row.node.kind === 'item' && row.node.ref === null && row.node.command ? (
-                    <Card c={c} padding={9} gap={8}>
-                        <SegmentedControl
-                            c={c}
-                            value={row.node.command.type}
-                            onChange={type =>
-                                onEdit(
-                                    row,
-                                    node => (node.kind === 'item' ? { ...node, command: type === 'open' ? { type: 'open', path: '', args: '' } : { type: 'copy', text: '' } } : node),
-                                    t('已切换命令类型', 'Command type changed')
-                                )
-                            }
-                            options={[
-                                { value: 'open' as const, label: t('运行 / 打开', 'Open') },
-                                { value: 'copy' as const, label: t('复制文本', 'Copy text') }
-                            ]}
-                        />
-                        {row.node.command.type === 'copy' ? (
-                            <FieldRow c={c} stacked={true} label={t('文本', 'Text')}>
-                                <TextArea
-                                    c={c}
-                                    value={row.node.command.text}
-                                    onChange={text => onEdit(row, node => (node.kind === 'item' && node.command?.type === 'copy' ? { ...node, command: { type: 'copy', text } } : node), t('已更新', 'Updated'))}
-                                    height={54}
-                                />
-                            </FieldRow>
                         ) : (
                             <Fragment>
-                                <FieldRow c={c} stacked={true} label={t('路径或命令', 'Path or command')}>
-                                    <TextField
+                                <SectionLabel c={c} text={t('基本', 'Basics')} />
+
+                                {row.node.kind === 'group' ? (
+                                    <FieldRow c={c} stacked={true} label={t('分组名称', 'Group name')}>
+                                        <TextField
+                                            c={c}
+                                            width={256}
+                                            value={row.node.label}
+                                            onChange={value => onEdit(row, node => (node.kind === 'group' ? { ...node, label: value } : node), t('已重命名分组', 'Group renamed'), `${row.key}:label`)}
+                                            placeholder={t('分组', 'Group')}
+                                        />
+                                    </FieldRow>
+                                ) : (
+                                    <FieldRow c={c} stacked={true} label={t('显示名称', 'Display name')} hint={row.node.ref ? t(`原生名称：${row.node.ref.name}`, `native: ${row.node.ref.name}`) : undefined}>
+                                        <TextField
+                                            c={c}
+                                            width={256}
+                                            value={row.node.label ?? row.node.ref?.name ?? ''}
+                                            onChange={value => onEdit(row, node => (node.kind === 'item' ? { ...node, label: value.length > 0 && value !== node.ref?.name ? value : null } : node), t('已重命名', 'Renamed'), `${row.key}:label`)}
+                                            placeholder={t('留空使用原生名称', 'Empty keeps the native name')}
+                                        />
+                                    </FieldRow>
+                                )}
+
+                                {row.node.kind === 'group' ? (
+                                    <FieldRow
                                         c={c}
-                                        value={row.node.command.path}
-                                        onChange={path => onEdit(row, node => (node.kind === 'item' && node.command?.type === 'open' ? { ...node, command: { ...node.command, path } } : node), t('已更新', 'Updated'))}
-                                        placeholder="explorer.exe / cmd.exe / https://…"
-                                    />
-                                </FieldRow>
-                                <FieldRow c={c} stacked={true} label={t('参数', 'Arguments')}>
-                                    <TextField
+                                        stacked={true}
+                                        label={t('布局', 'Layout')}
+                                        hint={
+                                            row.node.layout === 'row'
+                                                ? t('横排是一排按钮的容器，名称只在编辑器里用', 'A row is a container for one line of buttons; the name is editor-only')
+                                                : t('分组收进子菜单，名称就是子菜单标题', 'A group folds into a submenu; the name is the submenu title')
+                                        }
+                                    >
+                                        <SegmentedControl
+                                            c={c}
+                                            flexGrow={1}
+                                            value={row.node.layout}
+                                            onChange={layout => onEdit(row, node => (node.kind === 'group' ? { ...node, layout } : node), t('已切换布局', 'Layout changed'))}
+                                            options={[
+                                                { value: 'fold' as const, label: t('分组', 'Group'), icon: Icons.folder },
+                                                { value: 'row' as const, label: t('横排', 'Row'), icon: Icons.rowStack }
+                                            ]}
+                                        />
+                                    </FieldRow>
+                                ) : null}
+
+                                <ToggleSwitch
+                                    c={c}
+                                    value={row.node.hidden}
+                                    onChange={() => onEdit(row, toggledHidden, t(`已${row.node.kind !== 'sep' && row.node.hidden ? '取消隐藏' : '隐藏'}该行 · Ctrl+Z 撤销`, 'Visibility toggled · Ctrl+Z undoes it'))}
+                                    label={t('隐藏这一项', 'Hide this item')}
+                                    description={t('隐藏后 breeze 不再显示它', 'Hidden items are not rendered by breeze')}
+                                />
+                                {row.node.kind === 'item' ? (
+                                    <ToggleSwitch
                                         c={c}
-                                        value={row.node.command.args}
-                                        onChange={args => onEdit(row, node => (node.kind === 'item' && node.command?.type === 'open' ? { ...node, command: { ...node.command, args } } : node), t('已更新', 'Updated'))}
-                                        placeholder="%PATH%"
+                                        value={row.node.disabled}
+                                        onChange={() => onEdit(row, node => (node.kind === 'item' ? { ...node, disabled: !node.disabled } : node), t('已切换禁用', 'Disabled toggled'))}
+                                        label={t('禁用', 'Disabled')}
+                                        description={t('置灰且不可点；原生已禁用的项始终禁用', 'Greyed out and unclickable; natively disabled items stay disabled')}
                                     />
-                                </FieldRow>
+                                ) : null}
+
+                                {row.node.kind === 'item' && row.node.ref === null && row.node.command ? (
+                                    <Fragment>
+                                        <SegmentedControl
+                                            c={c}
+                                            flexGrow={1}
+                                            value={row.node.command.type}
+                                            onChange={type =>
+                                                onEdit(
+                                                    row,
+                                                    node => (node.kind === 'item' ? { ...node, command: type === 'open' ? { type: 'open', path: '', args: '' } : { type: 'copy', text: '' } } : node),
+                                                    t('已切换命令类型', 'Command type changed')
+                                                )
+                                            }
+                                            options={[
+                                                { value: 'open' as const, label: t('运行 / 打开', 'Open') },
+                                                { value: 'copy' as const, label: t('复制文本', 'Copy text') }
+                                            ]}
+                                        />
+                                        {row.node.command.type === 'copy' ? (
+                                            <FieldRow c={c} stacked={true} label={t('文本', 'Text')}>
+                                                <TextArea
+                                                    c={c}
+                                                    value={row.node.command.text}
+                                                    onChange={text => onEdit(row, node => (node.kind === 'item' && node.command?.type === 'copy' ? { ...node, command: { type: 'copy', text } } : node), t('已更新', 'Updated'), `${row.key}:text`)}
+                                                    height={54}
+                                                />
+                                            </FieldRow>
+                                        ) : (
+                                            <Fragment>
+                                                <FieldRow c={c} stacked={true} label={t('路径或命令', 'Path or command')}>
+                                                    <TextField
+                                                        c={c}
+                                                        width={256}
+                                                        value={row.node.command.path}
+                                                        onChange={path => onEdit(row, node => (node.kind === 'item' && node.command?.type === 'open' ? { ...node, command: { ...node.command, path } } : node), t('已更新', 'Updated'), `${row.key}:path`)}
+                                                        placeholder="explorer.exe / cmd.exe / https://…"
+                                                    />
+                                                </FieldRow>
+                                                <FieldRow
+                                                    c={c}
+                                                    stacked={true}
+                                                    label={t('参数', 'Arguments')}
+                                                    hint={t(
+                                                        '%PATH% 换成选中项（没有选中时是当前文件夹），%FOLDER% 换成当前文件夹；含空格的路径自动加引号',
+                                                        '%PATH% becomes the selection (or the current folder), %FOLDER% the current folder; paths with spaces get quoted'
+                                                    )}
+                                                >
+                                                    <TextField
+                                                        c={c}
+                                                        width={256}
+                                                        value={row.node.command.args}
+                                                        onChange={args => onEdit(row, node => (node.kind === 'item' && node.command?.type === 'open' ? { ...node, command: { ...node.command, args } } : node), t('已更新', 'Updated'), `${row.key}:args`)}
+                                                        placeholder="%PATH%"
+                                                    />
+                                                </FieldRow>
+                                            </Fragment>
+                                        )}
+                                    </Fragment>
+                                ) : null}
+
+                                <Divider c={c} />
+                                <IconPicker c={c} row={row} customSvg={customSvg} onCustomSvg={onCustomSvg} onEdit={onEdit} />
+
+                                {row.node.kind === 'item' && row.node.ref ? (
+                                    <Fragment>
+                                        <Divider c={c} />
+                                        <SectionLabel c={c} text={t('匹配信息', 'Matched by')} />
+                                        {matched ? (
+                                            <Fragment>
+                                                <MatchRow c={c} label="wID" value={row.node.ref.wID === undefined ? '-' : String(row.node.ref.wID)} />
+                                                <MatchRow c={c} label={t('资源 ID', 'resource')} value={row.node.ref.nameResid ?? '-'} />
+                                                <MatchRow c={c} label={t('原始文本', 'raw text')} value={row.node.ref.originName ?? '-'} />
+                                                <MatchRow c={c} label={t('快捷键', 'hotkey')} value={row.node.ref.hotkey ?? '-'} />
+                                            </Fragment>
+                                        ) : (
+                                            <Text c={c} text={t('四项都是空的：这项按显示名称匹配', 'All four are empty: this item matches by display name')} fontSize={10} color={c.textTertiary} maxWidth={268} />
+                                        )}
+                                    </Fragment>
+                                ) : null}
                             </Fragment>
                         )}
-                    </Card>
-                ) : null}
+                    </Fragment>
+                )}
+            </flex>
 
-                {row.node.kind === 'item' && row.node.ref ? (
-                    <Card c={c} padding={9} gap={5}>
-                        <SectionLabel c={c} text={t('匹配信息', 'Matched by')} />
-                        <MatchRow c={c} label="wID" value={row.node.ref.wID === undefined ? '-' : String(row.node.ref.wID)} />
-                        <MatchRow c={c} label={t('资源 ID', 'resource')} value={row.node.ref.nameResid ?? '-'} />
-                        <MatchRow c={c} label={t('原始文本', 'raw text')} value={row.node.ref.originName ?? '-'} />
-                        <MatchRow c={c} label={t('快捷键', 'hotkey')} value={row.node.ref.hotkey ?? '-'} />
-                    </Card>
-                ) : null}
-
-                <Card c={c} padding={9} gap={6}>
-                    <flex horizontal={true} gap={6}>
-                        <Button c={c} icon={Icons.arrowUp} label={t('上移', 'Up')} variant="standard" onClick={() => onMove(-1)} flexGrow={1} disabled={row.virtual} />
-                        <Button c={c} icon={Icons.arrowDown} label={t('下移', 'Down')} variant="standard" onClick={() => onMove(1)} flexGrow={1} disabled={row.virtual} />
-                    </flex>
-                    <flex horizontal={true} gap={6}>
-                        {row.node.kind !== 'group' ? <Button c={c} icon={Icons.folder} label={t('收纳成分组', 'Wrap in group')} variant="standard" onClick={() => onWrap('fold')} flexGrow={1} /> : null}
-                        {row.node.kind === 'group' ? <Button c={c} icon={Icons.layers} label={t('解散分组', 'Dissolve')} variant="standard" onClick={onUnwrap} flexGrow={1} disabled={row.virtual} /> : null}
-                        {row.parentId ? <Button c={c} icon={Icons.folderOpen} label={t('移出分组', 'Move out')} variant="standard" onClick={onMoveOut} flexGrow={1} disabled={row.virtual} /> : null}
-                    </flex>
-                    <flex horizontal={true} gap={6}>
-                        <Button c={c} icon={Icons.copy} label={t('复制', 'Copy')} variant="standard" onClick={onDuplicate} flexGrow={1} disabled={row.virtual} />
-                        <Button c={c} icon={Icons.trash} label={t('删除', 'Delete')} variant="danger" onClick={onRemove} flexGrow={1} disabled={row.virtual} />
-                    </flex>
-                </Card>
-            </Fragment>
-        )}
-    </flex>
-);
+            <Divider c={c} />
+            <flex horizontal={false} alignItems="stretch" padding={ACTION_PAD} gap={ACTION_GAP}>
+                {row === null ? (
+                    <Fragment>
+                        <Button c={c} icon={Icons.importFile} label={t(`全部纳入规则 (${stats.virtual} 项)`, `Add all (${stats.virtual})`)} variant="standard" height={ACTION_ROW_HEIGHT} onClick={onImport} disabled={snapshot === null || stats.virtual === 0} />
+                        <Button c={c} icon={Icons.trash} label={t('清空规则', 'Clear rules')} variant="danger" height={ACTION_ROW_HEIGHT} onClick={onClear} disabled={profile.nodes.length === 0} />
+                    </Fragment>
+                ) : (
+                    <Fragment>
+                        <flex horizontal={true} gap={5}>
+                            <Button c={c} icon={Icons.arrowUp} label={t('上移', 'Up')} variant="standard" height={ACTION_ROW_HEIGHT} flexGrow={1} onClick={() => onMove(-1)} />
+                            <Button c={c} icon={Icons.arrowDown} label={t('下移', 'Down')} variant="standard" height={ACTION_ROW_HEIGHT} flexGrow={1} onClick={() => onMove(1)} />
+                        </flex>
+                        <flex horizontal={true} gap={5}>
+                            <Button c={c} icon={Icons.moveTop} label={t('移到开头', 'To top')} variant="standard" height={ACTION_ROW_HEIGHT} flexGrow={1} onClick={() => onMoveTo('start')} />
+                            <Button c={c} icon={Icons.moveBottom} label={t('移到末尾', 'To end')} variant="standard" height={ACTION_ROW_HEIGHT} flexGrow={1} onClick={() => onMoveTo('end')} />
+                        </flex>
+                        <flex horizontal={true} gap={5}>
+                            {row.node.kind === 'item' ? <Button c={c} icon={Icons.folder} label={t('收纳成分组', 'Wrap in group')} variant="standard" height={ACTION_ROW_HEIGHT} flexGrow={1} onClick={() => onWrap('fold')} /> : null}
+                            {row.node.kind === 'group' ? <Button c={c} icon={Icons.layers} label={t('解散分组', 'Dissolve')} variant="standard" height={ACTION_ROW_HEIGHT} flexGrow={1} onClick={onUnwrap} /> : null}
+                            {row.parentId && !row.virtual ? <Button c={c} icon={Icons.folderOpen} label={t('移出分组', 'Move out')} variant="standard" height={ACTION_ROW_HEIGHT} flexGrow={1} onClick={onMoveOut} /> : null}
+                        </flex>
+                        <flex horizontal={true} gap={5}>
+                            <Button c={c} icon={Icons.copy} label={t('复制', 'Copy')} variant="standard" height={ACTION_ROW_HEIGHT} flexGrow={1} onClick={onDuplicate} />
+                            <Button c={c} icon={Icons.trash} label={row.virtual ? t('隐藏', 'Hide') : t('删除', 'Delete')} variant="danger" height={ACTION_ROW_HEIGHT} flexGrow={1} onClick={onRemove} />
+                        </flex>
+                    </Fragment>
+                )}
+            </flex>
+        </flex>
+    );
+};
 
 const KindPanel = ({
     c,
@@ -1313,20 +1473,16 @@ const KindPanel = ({
     kind,
     snapshot,
     stats,
-    onPatch,
-    onImport,
-    onClear
+    onPatch
 }: {
     c: ReturnType<typeof fluent>;
     profile: Profile;
     kind: MenuKind;
     snapshot: Snapshot | null;
     stats: { native: number; managed: number; virtual: number };
-    onPatch: (patch: Partial<Profile>, note?: string) => void;
-    onImport: () => void;
-    onClear: () => void;
+    onPatch: (patch: Partial<Profile>, note?: string, mergeKey?: string) => void;
 }) => (
-    <flex horizontal={false} alignItems="stretch" gap={8}>
+    <flex horizontal={false} alignItems="stretch" gap={6}>
         <flex horizontal={true} alignItems="center" gap={8} paddingTop={2} paddingBottom={2}>
             {iconElement(KIND_META[kind].icon, 17, profile.enabled ? c.accent : c.textSecondary)}
             <flex horizontal={false} alignItems="start" gap={0} flexGrow={1}>
@@ -1335,60 +1491,65 @@ const KindPanel = ({
             </flex>
         </flex>
 
-        <Card c={c} padding={9} gap={8}>
-            <ToggleSwitch
+        <SectionLabel c={c} text={t('规则', 'Rules')} />
+        <ToggleSwitch
+            c={c}
+            value={profile.enabled}
+            onChange={enabled => onPatch({ enabled }, enabled ? t('已启用该类型 · Ctrl+Z 撤销', 'Rules enabled · Ctrl+Z undoes it') : t('已停用该类型 · Ctrl+Z 撤销', 'Rules disabled · Ctrl+Z undoes it'))}
+            label={t('启用该类型规则', 'Enable rules')}
+            description={KIND_META[kind].hint}
+        />
+        <FieldRow c={c} stacked={true} label={t('未纳入的原生项', 'Native items not in the rules')} hint={t('建议保持原位：只改你动过的项', 'Keeping them in place is usually what you want')}>
+            <SegmentedControl
                 c={c}
-                value={profile.enabled}
-                onChange={enabled => onPatch({ enabled }, enabled ? t('已启用该类型', 'Rules enabled') : t('已停用该类型', 'Rules disabled'))}
-                label={t('启用该类型规则', 'Enable rules')}
-                description={KIND_META[kind].hint}
+                flexGrow={1}
+                value={profile.unmanaged}
+                onChange={unmanaged =>
+                    onPatch(
+                        { unmanaged },
+                        unmanaged === 'hide'
+                            ? t('未纳入的原生项：隐藏 · Ctrl+Z 撤销', 'Unmanaged items: hidden · Ctrl+Z undoes it')
+                            : unmanaged === 'keep-end'
+                              ? t('未纳入的原生项：移到末尾 · Ctrl+Z 撤销', 'Unmanaged items: to the end · Ctrl+Z undoes it')
+                              : t('未纳入的原生项：保持原位 · Ctrl+Z 撤销', 'Unmanaged items: in place · Ctrl+Z undoes it')
+                    )
+                }
+                options={[
+                    { value: 'keep-original' as Profile['unmanaged'], label: t('保持原位', 'In place') },
+                    { value: 'keep-end' as Profile['unmanaged'], label: t('移到末尾', 'To the end') },
+                    { value: 'hide' as Profile['unmanaged'], label: t('隐藏', 'Hide') }
+                ]}
             />
-            <FieldRow c={c} stacked={true} label={t('没被规则提到的原生项', 'Native items the rules do not mention')} hint={t('建议保持原位：只改你动过的项', 'Keeping them in place is usually what you want')}>
-                <SegmentedControl
-                    c={c}
-                    value={profile.unmanaged}
-                    onChange={unmanaged => onPatch({ unmanaged })}
-                    options={[
-                        { value: 'keep-original' as Profile['unmanaged'], label: t('保持原位', 'In place') },
-                        { value: 'keep-end' as Profile['unmanaged'], label: t('移到末尾', 'To the end') },
-                        { value: 'hide' as Profile['unmanaged'], label: t('隐藏', 'Hide') }
-                    ]}
-                />
-            </FieldRow>
-            {kind === 'other' ? (
-                <Fragment>
-                    <FieldRow c={c} stacked={true} label={t('只对这些进程生效', 'Only for these processes')} hint={t('进程名，逗号分隔；留空表示所有程序', 'Exe names, comma separated; empty means every app')}>
-                        <TextField c={c} value={profile.processFilter} onChange={processFilter => onPatch({ processFilter })} placeholder="explorer.exe, code.exe" />
-                    </FieldRow>
-                    <FieldRow c={c} stacked={true} label={t('窗口标题包含', 'Window title contains')} hint={t('留空表示不限制', 'Empty means no restriction')}>
-                        <TextField c={c} value={profile.titleFilter} onChange={titleFilter => onPatch({ titleFilter })} />
-                    </FieldRow>
-                </Fragment>
-            ) : null}
-        </Card>
+        </FieldRow>
+        {kind === 'other' ? (
+            <Fragment>
+                <FieldRow c={c} stacked={true} label={t('只对这些进程生效', 'Only for these processes')} hint={t('进程名，逗号分隔；留空表示所有程序', 'Exe names, comma separated; empty means every app')}>
+                    <TextField c={c} width={256} value={profile.processFilter} onChange={processFilter => onPatch({ processFilter }, undefined, `${kind}:processFilter`)} placeholder="explorer.exe, code.exe" />
+                </FieldRow>
+                <FieldRow c={c} stacked={true} label={t('窗口标题包含', 'Window title contains')} hint={t('留空表示不限制', 'Empty means no restriction')}>
+                    <TextField c={c} width={256} value={profile.titleFilter} onChange={titleFilter => onPatch({ titleFilter }, undefined, `${kind}:titleFilter`)} />
+                </FieldRow>
+            </Fragment>
+        ) : null}
 
-        <Card c={c} padding={9} gap={5}>
-            <SectionLabel c={c} text={t('采集', 'Capture')} />
-            <MatchRow c={c} label={t('时间', 'time')} value={clockText(snapshot?.at ?? 0)} />
-            <MatchRow c={c} label={t('窗口', 'window')} value={snapshot ? snapshot.windowTitle || snapshot.className || '-' : '-'} />
-            <MatchRow c={c} label={t('原生项', 'native')} value={String(stats.native)} />
-            <MatchRow c={c} label={t('未纳入', 'unmanaged')} value={String(stats.virtual)} />
-            <flex horizontal={true} gap={6} paddingTop={2}>
-                <Button c={c} icon={Icons.importFile} label={t('全部纳入', 'Add all')} variant="standard" onClick={onImport} disabled={!snapshot || stats.virtual === 0} flexGrow={1} />
-                <Button c={c} icon={Icons.trash} label={t('清空', 'Clear')} variant="danger" onClick={onClear} disabled={profile.nodes.length === 0} flexGrow={1} />
-            </flex>
-        </Card>
+        <Divider c={c} />
+        <SectionLabel c={c} text={t('采集', 'Capture')} />
+        <MatchRow c={c} label={t('时间', 'time')} value={clockText(snapshot?.at ?? 0)} />
+        <MatchRow c={c} label={t('窗口', 'window')} value={snapshot ? snapshot.windowTitle || snapshot.className || '-' : '-'} />
+        <MatchRow c={c} label={t('原生菜单项', 'native')} value={String(stats.native)} />
+        <MatchRow c={c} label={t('未纳入的原生项', 'unmanaged')} value={String(stats.virtual)} />
 
+        <Divider c={c} />
         <flex horizontal={false} padding={2}>
             <Text
                 c={c}
                 text={t(
-                    '点中间任意一行开始编辑：改名、换图标、隐藏、拖到别处。灰色的行是还没被规则覆盖的原生项，动一下它就变成规则。',
+                    '点中间任意一行开始编辑：改名、换图标、隐藏、拖到别处。灰色的行是未纳入的原生项，动一下它就变成规则。',
                     'Pick any row in the middle to rename, re-icon, hide or drag. Grey rows are native items no rule covers yet - touching one turns it into a rule.'
                 )}
                 fontSize={10}
                 color={c.textTertiary}
-                maxWidth={270}
+                maxWidth={268}
             />
         </flex>
     </flex>
@@ -1396,10 +1557,10 @@ const KindPanel = ({
 
 const MatchRow = ({ c, label, value }: { c: ReturnType<typeof fluent>; label: string; value: string }) => (
     <flex horizontal={true} gap={6} alignItems="center">
-        <flex width={64}>
-            <Text c={c} text={label} fontSize={10} color={c.textTertiary} />
+        <flex width={78}>
+            <Text c={c} text={label} fontSize={10} color={c.textTertiary} truncate={8} />
         </flex>
-        <Text c={c} text={value} fontSize={10} fontFamily="monospace" color={c.textSecondary} maxWidth={196} truncate={26} />
+        <Text c={c} text={value} fontSize={10} fontFamily="monospace" color={c.textSecondary} maxWidth={180} truncate={24} />
     </flex>
 );
 
@@ -1419,13 +1580,11 @@ const IconPicker = ({
     const node = row.node;
     if (node.kind === 'sep') return null;
     return (
-        <Card c={c} padding={9} gap={7}>
-            <flex horizontal={true} alignItems="center" gap={6}>
-                <SectionLabel c={c} text={t('图标', 'Icon')} />
-                <flex flexGrow={1} />
-                <Button c={c} label={t('原生', 'Native')} variant="subtle" onClick={() => onEdit(row, current => withIcon(current, { source: 'original' }), t('已换回原生图标', 'Native icon'))} height={24} />
-                <Button c={c} label={t('无', 'None')} variant="subtle" onClick={() => onEdit(row, current => withIcon(current, { source: 'none' }), t('已去掉图标', 'Icon removed'))} height={24} />
-            </flex>
+        <Fragment>
+            <SectionLabel c={c} text={t('外观', 'Look')}>
+                <Button c={c} label={t('原生', 'Native')} variant="subtle" onClick={() => onEdit(row, current => withIcon(current, { source: 'original' }), t('已换回原生图标 · Ctrl+Z 撤销', 'Native icon · Ctrl+Z undoes it'))} height={24} />
+                <Button c={c} label={t('无', 'None')} variant="subtle" onClick={() => onEdit(row, current => withIcon(current, { source: 'none' }), t('已去掉图标 · Ctrl+Z 撤销', 'Icon removed · Ctrl+Z undoes it'))} height={24} />
+            </SectionLabel>
             <flex horizontal={false} alignItems="stretch" gap={3}>
                 {Array.from({ length: Math.ceil(ICON_PALETTE.length / 8) }, (_, line) => (
                     <flex key={line} horizontal={true} gap={3} alignItems="center">
@@ -1435,7 +1594,7 @@ const IconPicker = ({
                                 c={c}
                                 name={name}
                                 selected={node.icon.source === 'svg' && node.icon.svg === Icons[name]}
-                                onPick={() => onEdit(row, current => withIcon(current, { source: 'svg', svg: Icons[name] }), t('已换图标', 'Icon changed'))}
+                                onPick={() => onEdit(row, current => withIcon(current, { source: 'svg', svg: Icons[name] }), t('已换图标 · Ctrl+Z 撤销', 'Icon changed · Ctrl+Z undoes it'))}
                             />
                         ))}
                     </flex>
@@ -1449,9 +1608,9 @@ const IconPicker = ({
                 variant="standard"
                 height={26}
                 disabled={customSvg.trim().length === 0}
-                onClick={() => onEdit(row, current => withIcon(current, { source: 'svg', svg: customSvg.trim() }), t('已应用自定义图标', 'Custom icon applied'))}
+                onClick={() => onEdit(row, current => withIcon(current, { source: 'svg', svg: customSvg.trim() }), t('已应用自定义图标 · Ctrl+Z 撤销', 'Custom icon applied · Ctrl+Z undoes it'))}
             />
-        </Card>
+        </Fragment>
     );
 };
 

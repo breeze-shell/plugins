@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 # 在 e2e 沙箱里跑「右键菜单编辑器」: 沙箱 home + 编译成 explorer.exe 的宿主进程 + 真实 shell.dll。
 #
 # 三段:
@@ -82,7 +82,7 @@ function Invoke-Phase {
     $exit = $LASTEXITCODE
     $env:CME_E2E_PHASE = $null
 
-    $text = if (Test-Path -LiteralPath $dbgLog) { Get-Content -LiteralPath $dbgLog -Raw } else { '' }
+    $text = if (Test-Path -LiteralPath $dbgLog) { Get-Content -LiteralPath $dbgLog -Raw -Encoding UTF8 } else { '' }
     [pscustomobject]@{
         Exit  = $exit
         Text  = $text
@@ -129,7 +129,9 @@ $checks = @(
     [pscustomobject]@{ Name = '重建后的项保留原生身份'; Pass = (@($capture.Lines | Where-Object { $_ -match 'PASS 子项保留' }).Count -ge 3) }
     [pscustomobject]@{ Name = '重建后的项仍能触发原动作'; Pass = (@($capture.Lines | Where-Object { $_ -match 'PASS 重建后的项仍触发原动作' }).Count -gt 0) }
     [pscustomobject]@{ Name = '规则能重塑真实原生菜单'; Pass = (@($rules.Lines | Where-Object { $_ -match 'PASS 真实原生菜单被重排' }).Count -gt 0 -and $rulesFailLines.Count -eq 0) }
-    [pscustomobject]@{ Name = '插件在真实运行时里没有报错'; Pass = ($capture.Text + $rules.Text -notmatch 'Unknown property|Unknown component|Invalid hook call|Error in JS menu callback|Error in menu listener') }
+    # Unknown binding setter: 给宿主组件传了没有 setter 的属性(例如 textbox 的 flexGrow),
+    # 整个窗口会白掉, 所以这里必须算失败。
+    [pscustomobject]@{ Name = '插件在真实运行时里没有报错'; Pass = ($capture.Text + $rules.Text -notmatch 'Unknown property|Unknown component|Unknown binding setter|Invalid hook call|Error in JS menu callback|Error in menu listener') }
 )
 
 if (-not $SkipWindow) {

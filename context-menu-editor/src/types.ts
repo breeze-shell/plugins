@@ -84,7 +84,6 @@ export type Snapshot = {
 };
 
 export type Settings = {
-    version: number;
     profiles: Record<MenuKind, Profile>;
     snapshots: Partial<Record<MenuKind, Snapshot>>;
     showMenuEntry: boolean;

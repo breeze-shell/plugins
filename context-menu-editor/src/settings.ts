@@ -2,12 +2,10 @@ import { GroupNode, IconSpec, ItemNode, ItemRef, MenuKind, Node, Profile, Settin
 import { MENU_KINDS } from './types';
 import { emptyProfile, newId } from './model';
 
-export const SCHEMA_VERSION = 1;
-
 export const defaultSettings = (): Settings => {
     const profiles = {} as Record<MenuKind, Profile>;
     for (const kind of MENU_KINDS) profiles[kind] = emptyProfile(kind);
-    return { version: SCHEMA_VERSION, profiles, snapshots: {}, showMenuEntry: true, logLevel: 'basic' };
+    return { profiles, snapshots: {}, showMenuEntry: true, logLevel: 'basic' };
 };
 
 const normalizeIcon = (raw: unknown): IconSpec => {
@@ -141,7 +139,7 @@ const normalizeProfile = (kind: MenuKind, raw: unknown): Profile => {
     base.nodes = normalizeNodes(input.nodes);
     base.unmanaged = (['keep-end', 'keep-original', 'hide'] as UnmanagedPolicy[]).includes(input.unmanaged as UnmanagedPolicy)
         ? (input.unmanaged as UnmanagedPolicy)
-        : 'keep-end';
+        : base.unmanaged;
     base.processFilter = typeof input.processFilter === 'string' ? input.processFilter : '';
     base.titleFilter = typeof input.titleFilter === 'string' ? input.titleFilter : '';
     base.updatedAt = Number(input.updatedAt) || 0;

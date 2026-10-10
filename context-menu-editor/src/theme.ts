@@ -82,6 +82,8 @@ export const Icons: Record<string, string> = {
     ),
     arrowUp: svg('M8 2.2L13.6 8.2H10.4V13.8H5.6V8.2H2.4Z'),
     arrowDown: svg('M8 13.8L2.4 7.8H5.6V2.2H10.4V7.8H13.6Z'),
+    moveTop: svg('M2.2 2H13.8V4H2.2ZM8 5.6L11.6 9.4H9.2V13.8H6.8V9.4H4.4Z'),
+    moveBottom: svg('M2.2 12H13.8V14H2.2ZM8 10.4L4.4 6.6H6.8V2.2H9.2V6.6H11.6Z'),
     importFile: svg('M7.1 1.8H8.9V7.2H11.7L8 11.4L4.3 7.2H7.1ZM2.2 10.4H4V13H12V10.4H13.8V14.8H2.2Z'),
     exportFile: svg('M8 1.4L11.7 5.6H8.9V9.6H7.1V5.6H4.3ZM2.2 10.4H4V13H12V10.4H13.8V14.8H2.2Z'),
     reset: svg(
@@ -116,6 +118,11 @@ export const Icons: Record<string, string> = {
     text: svg('M2.4 13.6L6.6 2.4H9.4L13.6 13.6H11.4L9.9 10.1H6.1L4.6 13.6ZM8 4.6L9.5 8.8H6.5Z')
 };
 
+export const tintSvg = (svg: string, color: string) =>
+    svg.replace(/currentColor/g, color).replace(/<svg\b(?![^>]*\sfill=)/i, `<svg fill="${color}"`);
+
+export const menuIcon = (svg: string) => tintSvg(svg, shell.breeze.is_light_theme() ? '#1a1a1a' : '#f2f2f2');
+
 export type Tone = 'accent' | 'info' | 'success' | 'warning' | 'danger' | 'neutral';
 
 export const fluent = () => {
@@ -127,7 +134,6 @@ export const fluent = () => {
         accentPressed: light ? '#327EC5FF' : '#53A3CCFF',
         accentText: light ? '#FFFFFFFF' : '#000000FF',
         accentSubtle: light ? '#005FB81A' : '#60CDFF1F',
-        accentSubtleHover: light ? '#005FB829' : '#60CDFF33',
         text: light ? '#000000E4' : '#FFFFFFFF',
         textSecondary: light ? '#0000009E' : '#FFFFFFC5',
         textTertiary: light ? '#00000072' : '#FFFFFF87',
@@ -147,7 +153,6 @@ export const fluent = () => {
         subtlePressed: light ? '#00000006' : '#FFFFFF0A',
         divider: light ? '#00000014' : '#FFFFFF15',
         codeBg: light ? '#0000000A' : '#00000040',
-        scrollTrack: light ? '#00000008' : '#FFFFFF0A',
         transparent: '#00000000',
         windowBg: light ? '#F3F3F3FF' : '#1F1F1FFF',
         railBg: light ? '#EBEBEBFF' : '#242424FF',
@@ -161,7 +166,6 @@ export const fluent = () => {
         selection: light ? '#005FB833' : '#60CDFF3D',
         selectionTint: light ? '#005FB81F' : '#60CDFF29',
         accentSoft: light ? '#005FB82E' : '#60CDFF38',
-        dropAccent: light ? '#005FB8FF' : '#8FDDFFFF',
         dangerTint: light ? '#C42B1C1F' : '#FF99A41F',
         dangerTintHover: light ? '#C42B1C29' : '#FF99A42E',
         successText: light ? '#0F7B0FFF' : '#6CCB5FFF',
@@ -194,4 +198,3 @@ export const toneColor = (tone: Tone, c: FluentTokens): { fg: string; bg: string
 
 export const COLOR_VARS = ['.r', '.g', '.b', '.a'];
 export const FAST = { duration: 120, easing: 'ease_out' as const };
-export const EASE_OUT = { duration: 180, easing: 'ease_out' as const };

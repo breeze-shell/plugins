@@ -31,7 +31,7 @@ export type ShortcutAction =
     | 'rename'
     | 'deselect';
 
-// 只用带修饰键的组合, 免得和输入框抢 Delete / 方向键
+// Delete 与方向键只认带修饰键的组合; 输入框聚焦时调用方不该再把按键交给这里
 export const shortcutFor = (key: number, mods: ShortcutMods, state: ShortcutState): ShortcutAction | null => {
     if (state.editing) return key === KEY.escape ? 'deselect' : null;
 
@@ -47,4 +47,9 @@ export const shortcutFor = (key: number, mods: ShortcutMods, state: ShortcutStat
     if (key === KEY.enter) return state.hasSelection ? 'rename' : null;
     if (key === KEY.escape) return state.hasSelection ? 'deselect' : null;
     return null;
+};
+
+export const stepIndex = (at: number, delta: number, length: number): number => {
+    if (at === -1) return delta > 0 ? 0 : length - 1;
+    return Math.max(0, Math.min(at + delta, length - 1));
 };

@@ -1,20 +1,23 @@
 import * as shell from 'mshell';
 import { createElement, ReactElement } from './react';
 import { ContextMenuEditor, WINDOW_HEIGHT, WINDOW_WIDTH } from './app';
-import { Settings, MenuKind } from './types';
+import { MenuKind, Profile, Settings } from './types';
 import { t } from './i18n';
 
 type EditorWindowOptions = {
     settings: Settings;
     initialKind: MenuKind;
     status: string;
-    onSettings: (next: Settings) => void;
+    onProfile: (kind: MenuKind, profile: Profile) => void;
+    subscribe: (listener: (next: Settings) => void) => () => void;
+    onClosed: () => void;
 };
 
 type OpenWindow = {
     win: shell.breeze_ui.window;
     renderer: { render: (element: ReactElement) => void; unmount: () => void };
     disposed: boolean;
+    onClosed: () => void;
 };
 
 let current: OpenWindow | null = null;
@@ -36,6 +39,7 @@ const dispose = (state: OpenWindow) => {
         current = null;
         shell.breeze.allow_js_reload(true);
     }
+    state.onClosed();
 };
 
 export const closeEditorWindow = () => {
@@ -46,7 +50,7 @@ export const openEditorWindow = (options: EditorWindowOptions) => {
     closeEditorWindow();
     shell.breeze.allow_js_reload(false);
 
-    const state = { disposed: false } as OpenWindow;
+    const state = { disposed: false, onClosed: options.onClosed } as OpenWindow;
     state.win = shell.breeze_ui.window.create_ex(t('右键菜单编辑器', 'Context Menu Editor'), WINDOW_WIDTH, WINDOW_HEIGHT, () =>
         dispose(state)
     );
@@ -59,7 +63,8 @@ export const openEditorWindow = (options: EditorWindowOptions) => {
             settings: options.settings,
             initialKind: options.initialKind,
             status: options.status,
-            onSettings: options.onSettings,
+            onProfile: options.onProfile,
+            subscribe: options.subscribe,
             onClose: () => state.win.close()
         })
     );

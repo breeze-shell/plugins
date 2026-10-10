@@ -188,37 +188,4 @@ export const flatten = (nodes: Node[], depth = 0): { node: Node; depth: number }
 
 export const countItems = (nodes: Node[]): number => flatten(nodes).filter(entry => entry.node.kind === 'item').length;
 
-export const collectRefKeys = (nodes: Node[]): Set<string> => {
-    const keys = new Set<string>();
-    for (const { node } of flatten(nodes)) {
-        if (node.kind === 'item' && node.ref) keys.add(node.ref.key);
-    }
-    return keys;
-};
-
-export const refKeysOf = (nodes: Node[], parentId: string | null): string[] =>
-    nodesOf(nodes, parentId)
-        .filter((node): node is ItemNode => node.kind === 'item' && node.ref !== null)
-        .map(node => (node.ref as ItemRef).key);
-
 export const clampIndex = (index: number, length: number): number => Math.max(0, Math.min(index, length));
-
-export const normalize = (nodes: Node[]): Node[] => {
-    const seen = new Set<string>();
-    const walk = (list: Node[]): Node[] => {
-        const out: Node[] = [];
-        for (const node of list) {
-            if (seen.has(node.id)) node.id = newId();
-            seen.add(node.id);
-            if (node.kind === 'group') {
-                out.push({ ...node, label: node.label.trim() || '分组', children: walk(node.children) });
-                continue;
-            }
-            out.push(node);
-        }
-        return out;
-    };
-    return walk(cloneNodes(nodes));
-};
-
-export const subtreeSize = (node: Node): number => (node.kind === 'group' ? 1 + node.children.reduce((sum, child) => sum + subtreeSize(child), 0) : 1);

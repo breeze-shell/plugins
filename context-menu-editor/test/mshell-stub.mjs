@@ -45,6 +45,10 @@ export const breeze = {
     version: () => '0.0.0-test'
 };
 
+export const win32 = {
+    env: name => (name === 'USERPROFILE' ? 'C:\\Users\\t' : undefined)
+};
+
 export const infra = {
     setTimeout: (callback, delay) => setTimeout(callback, delay),
     clearTimeout: id => clearTimeout(id),

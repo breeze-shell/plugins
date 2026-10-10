@@ -1,35 +1,24 @@
 import * as shell from 'mshell';
 import { t } from './i18n';
-import { CapturedItem, MenuContextInfo, applyProfile, captureMenu, classifyMenu, makeSnapshot, nodesFromSnapshot } from './plan';
+import { CapturedItem, MenuContextInfo, adoptUnmanaged, applyProfile, captureMenu, classifyMenu, makeSnapshot, nodesFromSnapshot } from './plan';
 import { defaultSettings, normalizeSettings } from './settings';
-import { MenuKind, Settings } from './types';
-import { Icons } from './theme';
+import { createStore } from './store';
+import { MenuKind } from './types';
+import { Icons, menuIcon } from './theme';
 import { closeEditorWindow, isEditorOpen, openEditorWindow } from './window';
 
 const helper = plugin({ name: '右键菜单编辑器', url: import.meta.url }, defaultSettings());
 const CONFIG_FILE = helper.config_directory + 'config.json';
 const E2E_MARKER = helper.config_directory + '.e2e';
 
-let settings: Settings = normalizeSettings(helper.config.all());
-let saveTimer: number | null = null;
+const store = createStore(normalizeSettings(helper.config.all()), settings => {
+    try {
+        shell.fs.write(CONFIG_FILE, JSON.stringify(settings, null, 4));
+    } catch (error) {
+        helper.log('保存配置失败', error);
+    }
+});
 const signatures: Partial<Record<MenuKind, string>> = {};
-
-const persist = () => {
-    if (saveTimer !== null) shell.infra.clearTimeout(saveTimer);
-    saveTimer = shell.infra.setTimeout(() => {
-        saveTimer = null;
-        try {
-            shell.fs.write(CONFIG_FILE, JSON.stringify(settings, null, 4));
-        } catch (error) {
-            helper.log('保存配置失败', error);
-        }
-    }, 400);
-};
-
-const updateSettings = (next: Settings) => {
-    settings = next;
-    persist();
-};
 
 const clock = (at: number) => {
     const date = new Date(at);
@@ -38,7 +27,7 @@ const clock = (at: number) => {
 };
 
 const captureStatus = (kind: MenuKind) => {
-    const snapshot = settings.snapshots[kind];
+    const snapshot = store.get().snapshots[kind];
     if (!snapshot) return t('还没有采集到该类型的菜单', 'No menu of this type captured yet');
     return t(`已载入 ${clock(snapshot.at)} 采集的菜单 (${snapshot.items.length} 项)`, `Loaded the menu captured at ${clock(snapshot.at)} (${snapshot.items.length} items)`);
 };
@@ -46,53 +35,42 @@ const captureStatus = (kind: MenuKind) => {
 const openEditor = (kind: MenuKind) => {
     closeEditorWindow();
     openEditorWindow({
-        settings,
+        settings: store.get(),
         initialKind: kind,
         status: captureStatus(kind),
-        onSettings: updateSettings
+        onProfile: store.updateProfile,
+        subscribe: store.subscribe,
+        onClosed: store.flush
     });
 };
 
 const toggleProfile = (kind: MenuKind) => {
-    const profile = settings.profiles[kind];
+    const profile = store.get().profiles[kind];
     const enabled = !profile.enabled;
-    settings = { ...settings, profiles: { ...settings.profiles, [kind]: { ...profile, enabled, updatedAt: Date.now() } } };
-    persist();
-    if (settings.logLevel !== 'off') helper.log(`${kind}: ${enabled ? 'enabled' : 'disabled'}`);
+    store.updateProfile(kind, { ...profile, enabled, updatedAt: Date.now() });
+    if (store.get().logLevel !== 'off') helper.log(`${kind}: ${enabled ? 'enabled' : 'disabled'}`);
 };
 
 const importSnapshot = (kind: MenuKind) => {
-    const snapshot = settings.snapshots[kind];
+    const snapshot = store.get().snapshots[kind];
     if (!snapshot) return;
-    const nodes = nodesFromSnapshot(snapshot);
-    const profile = settings.profiles[kind];
-    settings = {
-        ...settings,
-        profiles: { ...settings.profiles, [kind]: { ...profile, nodes, updatedAt: Date.now() } }
-    };
-    persist();
+    const profile = store.get().profiles[kind];
+    const { nodes, added } = adoptUnmanaged(profile, snapshot);
+    if (added === 0) return;
+    store.updateProfile(kind, { ...profile, nodes, updatedAt: Date.now() });
 };
 
 const appendEntry = (ctx: shell.menu_info_basic_js, kind: MenuKind) => {
-    const profile = settings.profiles[kind];
+    const profile = store.get().profiles[kind];
     ctx.menu.append_item({
         type: 'button',
         name: entryName(),
-        icon_svg: Icons.list,
+        icon_svg: menuIcon(Icons.list),
         submenu: (sub: shell.menu_controller) => {
             sub.append_item({
                 type: 'button',
                 name: t('编辑这个菜单…', 'Edit this menu...'),
-                icon_svg: Icons.pencil,
-                action: () => {
-                    ctx.menu.close();
-                    openEditor(kind);
-                }
-            });
-            sub.append_item({
-                type: 'button',
-                name: t('打开编辑器', 'Open the editor'),
-                icon_svg: Icons.sliders,
+                icon_svg: menuIcon(Icons.pencil),
                 action: () => {
                     ctx.menu.close();
                     openEditor(kind);
@@ -104,7 +82,7 @@ const appendEntry = (ctx: shell.menu_info_basic_js, kind: MenuKind) => {
                 name: profile.enabled
                     ? t('停用该类型的规则', 'Disable rules for this type')
                     : t('启用该类型的规则', 'Enable rules for this type'),
-                icon_svg: profile.enabled ? Icons.ban : Icons.check,
+                icon_svg: menuIcon(profile.enabled ? Icons.ban : Icons.check),
                 action: () => {
                     toggleProfile(kind);
                     ctx.menu.close();
@@ -112,8 +90,8 @@ const appendEntry = (ctx: shell.menu_info_basic_js, kind: MenuKind) => {
             });
             sub.append_item({
                 type: 'button',
-                name: t('把当前菜单导入为规则', 'Import this menu into the rules'),
-                icon_svg: Icons.importFile,
+                name: t('把未纳入的原生项收进规则', 'Add unmanaged native items to the rules'),
+                icon_svg: menuIcon(Icons.importFile),
                 action: () => {
                     importSnapshot(kind);
                     ctx.menu.close();
@@ -128,13 +106,11 @@ const entryName = () => t('右键菜单编辑器', 'Context Menu Editor');
 const signatureOf = (captured: CapturedItem[]) => captured.map(item => `${item.key}|${item.name}|${item.hasSubmenu ? 's' : ''}`).join('\n');
 
 const recordSnapshot = (info: MenuContextInfo, captured: CapturedItem[]) => {
-    // 别的插件或本插件自己插进来的入口不该被当成"原生菜单项"
-    const nativeOnly = captured.filter(item => item.name !== entryName());
-    const signature = signatureOf(nativeOnly);
+    const signature = signatureOf(captured);
+    const settings = store.get();
     if (signatures[info.kind] === signature && settings.snapshots[info.kind]) return;
     signatures[info.kind] = signature;
-    settings = { ...settings, snapshots: { ...settings.snapshots, [info.kind]: makeSnapshot(nativeOnly, info) } };
-    persist();
+    store.replace({ ...settings, snapshots: { ...settings.snapshots, [info.kind]: makeSnapshot(captured, info) } });
 };
 
 export const onMenu = (ctx: shell.menu_info_basic_js) => {
@@ -144,6 +120,7 @@ export const onMenu = (ctx: shell.menu_info_basic_js) => {
 
     recordSnapshot(info, captured);
 
+    const settings = store.get();
     const result = applyProfile(ctx.menu, settings.profiles[info.kind], info, captured);
     if (settings.logLevel === 'verbose') helper.log(`${info.kind}: ${result.reason} (native=${result.captured})`);
 
@@ -164,8 +141,8 @@ helper.set_on_menu(menu => {
 
 if (shell.fs.exists(E2E_MARKER)) {
     (globalThis as Record<string, unknown>).__ctx_menu_editor = {
-        settings: () => settings,
-        setSettings: updateSettings,
+        settings: store.get,
+        setSettings: store.replace,
         onMenu,
         openEditor,
         closeEditor: closeEditorWindow,
@@ -176,11 +153,7 @@ if (shell.fs.exists(E2E_MARKER)) {
         importSnapshot,
         nodesFromSnapshot,
         log: (message: string) => helper.log(String(message)),
-        flush: () => {
-            if (saveTimer !== null) shell.infra.clearTimeout(saveTimer);
-            saveTimer = null;
-            shell.fs.write(CONFIG_FILE, JSON.stringify(settings, null, 4));
-        }
+        flush: store.save
     };
     helper.log('e2e hook enabled');
 }

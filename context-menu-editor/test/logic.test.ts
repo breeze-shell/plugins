@@ -2,31 +2,30 @@
 import { breeze, subprocCalls } from 'mshell';
 import { isChinese, t } from '../src/i18n';
 import {
-    collectRefKeys,
     countItems,
     duplicateNode,
+    emptyProfile,
     flatten,
     groupNode,
     insertNode,
     itemNode,
     moveNode,
-    normalize,
-    refKeysOf,
     removeNode,
     sepNode,
-    subtreeSize,
     unwrapGroup,
     wrapInGroup
 } from '../src/model';
-import { applyProfile, buildCanvas, captureMenu, classifyMenu, makeSnapshot, matchesProfileContext, nodesFromSnapshot, planMenu, tidyPlan, toRef } from '../src/plan';
-import { SCHEMA_VERSION, defaultSettings, normalizeSettings } from '../src/settings';
-import { KEY, shortcutFor } from '../src/shortcuts';
+import { adoptUnmanaged, applyProfile, analysePlan, buildCanvas, captureMenu, classifyMenu, expandArgs, makeSnapshot, matchesProfileContext, nodesFromSnapshot, planMenu, tidyPlan } from '../src/plan';
+import { defaultSettings, normalizeSettings } from '../src/settings';
+import { HISTORY_LIMIT, emptyHistory, recordHistory, redoHistory, undoHistory } from '../src/history';
+import { KEY, shortcutFor, stepIndex } from '../src/shortcuts';
+import { createStore } from '../src/store';
 import { MENU_KINDS } from '../src/types';
 import { activated, asMenu, asParent, createFakeMenu, describeMenu, findItem, namesOf, openSubmenu, parentControllers, resetActivated, runAction, sepIndices } from './fakes';
 import type { CanvasRow, PlanNode } from '../src/plan';
 import type { ShortcutMods, ShortcutState } from '../src/shortcuts';
 import type { FakeEntry, FakeItemSpec } from './fakes';
-import type { GroupNode, ItemNode, ItemRef, MenuContextInfo, Node, Profile, SepNode, Snapshot, SnapshotItem } from '../src/types';
+import type { GroupNode, ItemNode, ItemRef, MenuContextInfo, Node, Profile, SepNode, Settings, Snapshot, SnapshotItem } from '../src/types';
 
 let passed = 0;
 const failures: string[] = [];
@@ -145,18 +144,8 @@ const modelTests = () => {
     checkEq('unwrapGroup 就地展开子项', shape(unwrapGroup(wrapped.nodes, wrapped.groupId)), '[a b c d]');
     check('unwrapGroup 非分组原样返回', unwrapGroup(four, 'a') === four);
 
-    const dirty: Node[] = [mkItem('dup'), mkItem('dup'), mkGroup('g2', [mkItem('dup')], { label: '   ' })];
-    const clean = normalize(dirty);
-    const allIds = flatten(clean).map(entry => entry.node.id);
-    check('normalize 生成唯一 id', new Set(allIds).size === allIds.length);
-    checkEq('normalize 空分组标签兜底', (clean[2] as GroupNode).label, '分组');
-    checkEq('normalize 保留节点形态', shape(clean), '[dup dup G[dup]]');
-
     const counted: Node[] = [mkItem('a'), mkGroup('g', [mkItem('b'), mkSep('s'), mkItem('c')]), mkItem('a')];
     checkEq('countItems 统计嵌套项', countItems(counted), 4);
-    checkEq('collectRefKeys 去重且含嵌套', [...collectRefKeys(counted)].sort(), ['a', 'b', 'c']);
-    checkEq('refKeysOf 只看指定层', refKeysOf(counted, 'g'), ['b', 'c']);
-    checkEq('subtreeSize 含自身', subtreeSize(counted[1]), 4);
 };
 
 /* ------------------------------------------------------------- 上下文 */
@@ -169,6 +158,7 @@ const folderCtx = (selected: string[], path = 'C:\\Users\\t\\下载') =>
 const infoOf = (over: Partial<MenuContextInfo> = {}): MenuContextInfo => ({
     kind: 'other',
     path: '',
+    selected: [],
     selection: 0,
     title: '资源管理器',
     className: 'CabinetWClass',
@@ -184,9 +174,18 @@ const contextTests = () => {
     const empty = classifyMenu(folderCtx([]));
     checkEq('文件夹视图无选中为 folder', [empty.kind, empty.selection], ['folder', 0]);
     checkEq('缺 selected_files 视为无选中', classifyMenu(ctxOf({ window_info: winInfo({ class_name: 'CabinetWClass' }), folder_view: { current_path: '' } })).kind, 'folder');
-    for (const [name, klass] of [['Progman', 'Progman'], ['WorkerW', 'WorkerW'], ['SHELLDLL_DefView', 'SHELLDLL_DefView'], ['小写 progman', 'progman']] as const) {
+    for (const [name, klass] of [['Progman', 'Progman'], ['WorkerW', 'WorkerW'], ['小写 progman', 'progman']] as const) {
         checkEq(`桌面窗口 ${name}`, classifyMenu(ctxOf({ window_info: winInfo({ class_name: klass }) })).kind, 'desktop');
     }
+    const desktopCtx = (klass: string, path: string, selected: string[] = []) =>
+        ctxOf({ window_info: winInfo({ title: 'FolderView', class_name: klass, executable_path: 'C:\\Windows\\explorer.exe' }), folder_view: { current_path: path, selected_files: selected } });
+    checkEq('桌面列表带 folder_view 仍是桌面', classifyMenu(desktopCtx('SysListView32', 'C:\\Users\\t\\Desktop')).kind, 'desktop');
+    checkEq('桌面上选中图标也是桌面', classifyMenu(desktopCtx('SHELLDLL_DefView', 'c:\\users\\t\\desktop\\', ['C:\\Users\\t\\Desktop\\a.txt'])).kind, 'desktop');
+    checkEq('桌面路径可由调用方给出', classifyMenu(desktopCtx('SysListView32', 'D:\\桌面'), ['d:\\桌面']).kind, 'desktop');
+    checkEq('别的文件夹里的 SHELLDLL_DefView 不是桌面', classifyMenu(desktopCtx('SHELLDLL_DefView', 'C:\\Users\\t\\下载')).kind, 'folder');
+    checkEq('资源管理器窗口里打开桌面文件夹不算桌面', classifyMenu(desktopCtx('DirectUIHWND', 'C:\\Users\\t\\Desktop')).kind, 'folder');
+    checkEq('没有 folder_view 的 SHELLDLL_DefView 仍按桌面处理', classifyMenu(ctxOf({ window_info: winInfo({ class_name: 'SHELLDLL_DefView' }) })).kind, 'desktop');
+    checkEq('选中项路径进 info', classifyMenu(folderCtx(['C:\\a.txt', 'C:\\b c.txt'])).selected, ['C:\\a.txt', 'C:\\b c.txt']);
     for (const klass of ['Shell_TrayWnd', 'Shell_SecondaryTrayWnd']) {
         checkEq(`任务栏窗口 ${klass}`, classifyMenu(ctxOf({ window_info: winInfo({ class_name: klass }) })).kind, 'taskbar');
     }
@@ -200,17 +199,14 @@ const contextTests = () => {
     check('进程名不匹配则拒绝', !matchesProfileContext(otherProfile({ processFilter: 'explorer.exe' }), infoOf({ executable: 'C:\\Program Files\\Google\\Chrome\\chrome.exe' })));
     check('标题子串匹配', matchesProfileContext(otherProfile({ titleFilter: ' 资源管理 ' }), infoOf()));
     check('标题不匹配则拒绝', !matchesProfileContext(otherProfile({ titleFilter: 'zzz' }), infoOf()));
-};
 
-const emptyProfile = (kind: MenuContextInfo['kind']): Profile => ({
-    kind,
-    enabled: false,
-    nodes: [],
-    unmanaged: 'keep-end',
-    processFilter: '',
-    titleFilter: '',
-    updatedAt: 0
-});
+    const inFolder = infoOf({ kind: 'files', path: 'C:\\My Docs', selected: ['C:\\My Docs\\a b.txt', 'C:\\My Docs\\c.txt'] });
+    checkEq('%PATH% 展开成选中项并给含空格的加引号', expandArgs('/select %PATH%', inFolder), '/select "C:\\My Docs\\a b.txt" "C:\\My Docs\\c.txt"');
+    checkEq('%FOLDER% 展开成当前文件夹', expandArgs('%FOLDER%', inFolder), '"C:\\My Docs"');
+    checkEq('没有选中时 %PATH% 用当前文件夹', expandArgs('%path%', infoOf({ kind: 'folder', path: 'C:\\t' })), 'C:\\t');
+    checkEq('没有路径时占位符变空', expandArgs('-a %PATH% %FOLDER%', infoOf()), '-a  ');
+    checkEq('别的 % 写法原样保留', expandArgs('%USERPROFILE% 50%', inFolder), '%USERPROFILE% 50%');
+};
 
 /* ------------------------------------------------------------- planMenu */
 
@@ -252,7 +248,6 @@ const captureTests = () => {
     checkEq('index 连续递增', captured.map(item => item.index), [0, 1, 2, 3, 4, 5]);
     checkEq('分隔符标记', captured.map(item => item.separator), [false, true, false, false, true, false]);
     checkEq('透传 wID/resid/子菜单', [captured[5].wID, captured[5].nameResid, captured[5].originName, captured[5].hasSubmenu], [105, 'R7', undefined, true]);
-    checkEq('toRef 保留字段', toRef(captured[5]), { key: 'r:R7', name: '属性', originName: undefined, nameResid: 'R7', wID: 105, hotkey: undefined, hasSubmenu: true });
 
     const snapshot = makeSnapshot(captured, infoOf({ kind: 'files', path: 'C:\\t', selection: 2 }));
     checkEq('snapshot 保留分隔符与图标信息', [snapshot.items.length, snapshot.items[1].separator, snapshot.items[2].key, snapshot.kind, snapshot.selection], [6, true, 'r:R100', 'files', 2]);
@@ -264,8 +259,10 @@ const planTests = () => {
 
     const captured = captureMenu(asMenu(createFakeMenu(CAP)));
     checkEq('hide 只留列出的项', planNames(planMenu(captured, pProfile([pItem('r:R100'), pItem('r:R101')]))), ['打开', '复制']);
-    checkEq('keep-end 未列项追加到末尾', planNames(planMenu(captured, pProfile([pItem('r:R100')], 'keep-end'))), ['打开', '粘贴', '复制', '属性']);
-    checkEq('keep-original 未列项回到原位', planNames(planMenu(captured, pProfile([pItem('r:R100'), pItem('r:R101')], 'keep-original'))), ['粘贴', '打开', '复制', '属性']);
+    checkEq('keep-end 未列项连同原生分隔线追加到末尾', planNames(planMenu(captured, pProfile([pItem('r:R100')], 'keep-end'))), ['打开', '粘贴', '--', '复制', '--', '属性']);
+    checkEq('keep-original 未列项与原生分隔线回到原位', planNames(planMenu(captured, pProfile([pItem('r:R100'), pItem('r:R101')], 'keep-original'))), ['粘贴', '--', '打开', '复制', '--', '属性']);
+    checkEq('hide 不保留原生分隔线', planNames(planMenu(captured, pProfile([pItem('r:R100'), pItem('r:R7')]))), ['打开', '属性']);
+    checkEq('原生分隔线透传后照样整理', planNames(planMenu(captured, pProfile([pItem('r:R100'), pItem('r:R101'), pItem('r:R7', { hidden: true })], 'keep-original'))), ['粘贴', '--', '打开', '复制']);
     checkEq('未采集到的 ref 直接丢弃', planNames(planMenu(captured, pProfile([pItem('r:NOPE'), pItem('r:R7')]))), ['属性']);
     checkEq('子项全落空的分组消失', planNames(planMenu(captured, pProfile([pGroup('空组', [pItem('r:NOPE')]), pItem('r:R7')]))), ['属性']);
     checkEq('分组按原顺序收纳子项', planNames(planMenu(captured, pProfile([pGroup('收纳', [pItem('r:R101'), pItem('r:R7')])]))), ['[收纳]']);
@@ -281,7 +278,81 @@ const planTests = () => {
     checkEq('隐藏分组被丢弃', hiddenGroup, ['属性']);
     // 隐藏是显式意图, 不能被 keep-end/keep-original 当成未列项再捡回来。
     const revived = planNames(planMenu(captured, pProfile([pItem('r:R100'), pItem('r:R7', { hidden: true })], 'keep-end')));
-    checkEq('隐藏项在 keep-end 下也不复活', revived, ['打开', '粘贴', '复制']);
+    checkEq('隐藏项在 keep-end 下也不复活', revived, ['打开', '粘贴', '--', '复制']);
+
+    const ignored = pGroup('内', [pItem('r:R100')]);
+    const rowWithGroup = pGroup('横排', [ignored, pItem('r:R101')], { layout: 'row' });
+    checkEq('横排里被忽略的分组不把原生项放回菜单', planNames(planMenu(captured, pProfile([rowWithGroup], 'keep-end'))), ['[横排]', '粘贴', '--', '属性']);
+
+    const messy = planMenu(captured, pProfile([pGroup('组', [sepNode(), pItem('r:R100'), sepNode(), sepNode(), pItem('r:R101'), sepNode()])]));
+    const messyGroup = messy[0] as Extract<PlanNode, { kind: 'group' }>;
+    checkEq('分组内的分隔线也被整理', planNames(messyGroup.children), ['打开', '--', '复制']);
+    checkEq('只剩分隔线的分组消失', planNames(planMenu(captured, pProfile([pGroup('空', [sepNode(), sepNode()]), pItem('r:R7')]))), ['属性']);
+};
+
+/* ------------------------------------------------------------- analysePlan */
+
+const warningTests = () => {
+    section('analysePlan');
+
+    const captured = captureMenu(asMenu(createFakeMenu(CAP)));
+    const snapshot = makeSnapshot(captured, infoOf({ kind: 'files', path: 'C:\\t', selection: 1 }));
+    const kinds = (nodes: Node[], unmanaged: Profile['unmanaged'] = 'hide'): string[] =>
+        analysePlan(pProfile(nodes, unmanaged), snapshot).map(warning => `${warning.kind}:${warning.id}`);
+
+    checkEq('干净的规则没有警告', kinds([pItem('r:R100'), pItem('r:R7')]), []);
+
+    const withRef = pItem('r:R100');
+    checkEq('没有快照时规则项都算匹配不到', analysePlan(pProfile([withRef]), null).map(warning => warning.kind), ['unknown-ref']);
+
+    const lonely = pItem('r:NOPE');
+    checkEq('匹配不到原生项的规则项被标出', kinds([lonely]), [`unknown-ref:${lonely.id}`]);
+    const hollow = pGroup('空', [pItem('r:NOPE')]);
+    checkEq('子项全落空的分组同时报两项', kinds([hollow]), [`unknown-ref:${hollow.children[0].id}`, `empty-group:${hollow.id}`]);
+    const blank = pGroup('空组', []);
+    checkEq('什么都不含的分组被标成空分组', kinds([blank, pItem('r:R7')]), [`empty-group:${blank.id}`]);
+
+    const hiddenChild = pGroup('全隐藏', [pItem('r:R100', { hidden: true })]);
+    checkEq('子项全被隐藏的分组也是空分组', kinds([hiddenChild]), [`empty-group:${hiddenChild.id}`]);
+    const hiddenGroup = pGroup('整组隐藏', [pItem('r:R100')], { hidden: true });
+    checkEq('整组隐藏是显式意图, 不报警告', kinds([hiddenGroup]), []);
+
+    const lead = sepNode();
+    const first = sepNode();
+    const second = sepNode();
+    const tail = sepNode();
+    checkEq('开头/连续/结尾的分隔线被标出', kinds([lead, pItem('r:R100'), first, second, pItem('r:R7'), tail]), [
+        `dead-separator:${lead.id}`,
+        `dead-separator:${second.id}`,
+        `dead-separator:${tail.id}`
+    ]);
+
+    // 未纳入的原生项会补在规则后面, 所以末尾的分隔线是不是"结尾"取决于策略
+    const endSep = sepNode();
+    checkEq('keep-end 下末尾分隔线后面还有未纳入项, 不该报警', analysePlan(pProfile([pItem('r:R100'), endSep], 'keep-end'), snapshot).map(w => w.kind), []);
+    checkEq('keep-end 下开头的分隔线照样被省略', analysePlan(pProfile([sepNode(), pItem('r:R100')], 'keep-end'), snapshot).map(w => w.kind), ['dead-separator']);
+    const cutSep = sepNode();
+    checkEq('hide 下末尾的分隔线确实会被丢掉', analysePlan(pProfile([pItem('r:R100'), cutSep], 'hide'), snapshot).map(w => `${w.kind}:${w.id}`), [`dead-separator:${cutSep.id}`]);
+    const [g1, g2, g3, g4] = [sepNode(), sepNode(), sepNode(), sepNode()];
+    checkEq('分组内开头/连续/结尾的分隔线也被标出', kinds([pGroup('组', [g1, pItem('r:R100'), g2, g3, pItem('r:R101'), g4])]), [
+        `dead-separator:${g1.id}`,
+        `dead-separator:${g3.id}`,
+        `dead-separator:${g4.id}`
+    ]);
+    const inner = pGroup('内', [pItem('r:R100')]);
+    const row = pGroup('横排', [inner, pItem('r:R101')], { layout: 'row' });
+    checkEq('横排里的分组被标出', kinds([row]), [`ignored-in-row:${inner.id}`]);
+    checkEq('横排里的分组确实不进计划', planNames(planMenu(captured, pProfile([row]))), ['[横排]']);
+    const hiddenInRow = pGroup('隐', [pItem('r:R100')], { hidden: true });
+    checkEq('横排里整组隐藏的不重复报警', kinds([pGroup('横排', [hiddenInRow, pItem('r:R101')], { layout: 'row' })]), []);
+    checkEq('自定义命令不需要 ref', kinds([itemNode(null, '记事本', { type: 'open', path: 'C:\\x', args: '' })]), []);
+
+    // 演示配置那种形状 (分组 + 分隔线 + 横排) 不该出现任何警告
+    checkEq(
+        '真实形状的规则没有误报',
+        kinds([pGroup('我的分组', [pItem('r:R100')]), sepNode(), pGroup('横排', [pItem('r:R7')], { layout: 'row' })]),
+        []
+    );
 };
 
 /* ------------------------------------------------------------- buildCanvas */
@@ -372,12 +443,79 @@ const canvasTests = () => {
         ['virtual:r:X', a.id, 'virtual:r:Y', d.id, 'virtual:r:Z']
     );
 
+    const folded = pGroup('收纳', [pItem('r:B')]);
+    const anchored = pProfile([folded, pItem('r:A')], 'keep-original');
+    const anchorSnap = canvasSnap(['r:X', 'r:A', 'r:Y', 'r:B', 'r:Z']);
+    checkEq('keep-original 分组按子项的最早位置当锚点', rowKeys(buildCanvas(anchored, anchorSnap, [])), [
+        'virtual:r:X',
+        'virtual:r:Y',
+        folded.id,
+        anchored.nodes[1].id,
+        'virtual:r:Z'
+    ]);
+    const sameMenu = captureMenu(asMenu(createFakeMenu(['X', 'A', 'Y', 'B', 'Z'].map(name => ({ name, nameResid: name })))));
+    const realOrder = planMenu(sameMenu, { ...anchored, nodes: [pGroup('收纳', [pItem('r:B')]), pItem('r:A')] }).map(node =>
+        node.kind === 'group' ? 'G' : node.kind === 'item' ? node.source?.name ?? '?' : '-'
+    );
+    checkEq('画布顺序与真实菜单一致', realOrder, ['X', 'Y', 'G', 'A', 'Z']);
+    const hiddenAnchor = pItem('r:A', { hidden: true });
+    checkEq('隐藏的规则项不当锚点', rowKeys(buildCanvas(pProfile([hiddenAnchor], 'keep-original'), canvasSnap(['r:X', 'r:A']), [])), [hiddenAnchor.id, 'virtual:r:X']);
+
+    const keepA = pItem('r:A', { label: '改过的 A' });
+    const keepG = pGroup('组', [pItem('r:B')]);
+    const adopted = adoptUnmanaged(pProfile([keepA, keepG], 'keep-original'), canvasSnap(['r:X', 'r:A', 'r:Y', 'r:B', 'r:Z']));
+    checkEq('收进规则只补未覆盖项, 落在原位', [adopted.added, shape(adopted.nodes)], [3, '[r:X r:A r:Y G[r:B] r:Z]']);
+    check('收进规则不动已有规则', adopted.nodes[1] === keepA && adopted.nodes[3] === keepG);
+    checkEq('全都覆盖时什么也不加', adoptUnmanaged(pProfile([keepA], 'keep-original'), canvasSnap(['r:A'])).added, 0);
+    const adoptedHidden = adoptUnmanaged(pProfile([keepA], 'hide'), canvasSnap(['r:A', 'r:X']));
+    checkEq('hide 下收进来的项保持隐藏', adoptedHidden.nodes.map(node => node.kind !== 'sep' && node.hidden), [false, true]);
+
     checkEq('hide 把未覆盖项标成策略隐藏', rowShape(buildCanvas(pProfile([a], 'hide'), canvasSnap(['r:A', 'r:B']), [])), [
         `规则 ${a.id} 父=- 序=0 深=0`,
         '虚拟 r:B 父=- 序=-1 深=0 隐藏'
     ]);
     checkEq('keep-end 不标记策略隐藏', buildCanvas(pProfile([a], 'keep-end'), canvasSnap(['r:A', 'r:B']), []).map(row => row.hiddenByPolicy), [false, false]);
     checkEq('keep-original 不标记策略隐藏', buildCanvas(pProfile([a], 'keep-original'), canvasSnap(['r:A', 'r:B']), []).map(row => row.hiddenByPolicy), [false, false]);
+};
+
+/* ------------------------------------------------------------- history */
+
+const historyTests = () => {
+    section('history');
+
+    const profiles = defaultSettings().profiles;
+    const filesV1 = { ...profiles.files, enabled: true };
+    const desktopV1 = { ...profiles.desktop, enabled: true };
+
+    let history = recordHistory(emptyHistory(), { kind: 'desktop', profile: profiles.desktop });
+    history = recordHistory(history, { kind: 'files', profile: profiles.files });
+    const now = { ...profiles, files: filesV1, desktop: desktopV1 };
+
+    const first = undoHistory(history, now);
+    checkEq('撤销恢复最后一条', [first?.restore.kind, first?.restore.profile === profiles.files], ['files', true]);
+    const second = undoHistory(first!.history, { ...now, files: profiles.files });
+    checkEq('跨类型撤销恢复那条记录的类型', [second?.restore.kind, second?.restore.profile === profiles.desktop], ['desktop', true]);
+    const redoEntry = second!.history.future[second!.history.future.length - 1];
+    check('跨类型撤销时重做栈存的是那个类型的当前值', redoEntry.kind === 'desktop' && redoEntry.profile === desktopV1);
+    const again = redoHistory(second!.history, { ...now, files: profiles.files, desktop: profiles.desktop });
+    check('重做回到撤销前的值', again !== null && again.restore.kind === 'desktop' && again.restore.profile === desktopV1);
+    const undoEntry = again!.history.past[again!.history.past.length - 1];
+    check('跨类型重做时撤销栈存的是那个类型的当前值', undoEntry.kind === 'desktop' && undoEntry.profile === profiles.desktop);
+    check('空栈撤销/重做返回 null', undoHistory(emptyHistory(), now) === null && redoHistory(emptyHistory(), now) === null);
+
+    const typed = ['a', 'ab', 'abc'].reduce((acc, title) => recordHistory(acc, { kind: 'other', profile: { ...profiles.other, titleFilter: title } }, 'other:titleFilter'), emptyHistory());
+    checkEq('同一字段的连续输入只记一条', typed.past.map(entry => entry.profile.titleFilter), ['a']);
+    const other = recordHistory(typed, { kind: 'other', profile: profiles.other }, 'other:processFilter');
+    checkEq('换一个字段就另起一条', other.past.length, 2);
+    const back = recordHistory(recordHistory(typed, { kind: 'files', profile: profiles.files }), { kind: 'other', profile: profiles.other }, 'other:titleFilter');
+    checkEq('中间夹了别的操作后同一字段重新记', back.past.length, 3);
+    const afterUndo = recordHistory(undoHistory(typed, profiles)!.history, { kind: 'other', profile: profiles.other }, 'other:titleFilter');
+    checkEq('撤销后再输入重新记', afterUndo.past.length, 1);
+    check('新记录清空重做栈', recordHistory(second!.history, { kind: 'files', profile: profiles.files }).future.length === 0);
+
+    let long = emptyHistory();
+    for (let i = 0; i < HISTORY_LIMIT + 5; i += 1) long = recordHistory(long, { kind: 'files', profile: { ...profiles.files, updatedAt: i } });
+    checkEq('历史最多保留上限条', [long.past.length, long.past[0].profile.updatedAt], [HISTORY_LIMIT, 5]);
 };
 
 /* ------------------------------------------------------------- shortcutFor */
@@ -438,6 +576,9 @@ const shortcutTests = () => {
         ['deselect', null, null, null]
     );
     checkEq('编辑中无选中也能退出', shortcutFor(KEY.escape, noMods, stateOf({ editing: true, hasSelection: false })), 'deselect');
+    checkEq('最后一行再往下停在最后一行', stepIndex(4, 1, 5), 4);
+    checkEq('第一行再往上停在第一行', stepIndex(0, -1, 5), 0);
+    checkEq('没有选中时往下选第一行、往上选最后一行', [stepIndex(-1, 1, 5), stepIndex(-1, -1, 5)], [0, 4]);
     checkEq('编辑中 alt+up 不响应', shortcutFor(KEY.up, modsOf({ alt: true }), stateOf({ editing: true })), null);
 };
 
@@ -466,7 +607,7 @@ const applyProfileFixture = (): Profile => ({
         pGroup('整理', [pItem('r:R2'), sepNode(), pItem('r:R5')], { layout: 'fold' }),
         pGroup('快捷', [pItem('r:R1'), pItem('o:compress')], { layout: 'row' }),
         sepNode(),
-        itemNode(null, '记事本', { type: 'open', path: 'C:\\Windows\\notepad.exe', args: '' }),
+        itemNode(null, '记事本', { type: 'open', path: 'C:\\Windows\\notepad.exe', args: '%PATH%' }),
         pItem('r:R6', { hidden: true })
     ]
 });
@@ -517,8 +658,30 @@ const applyTests = () => {
 
     const custom = findItem(menu.items, '记事本')!;
     runAction(custom);
-    checkEq('自定义命令调用 subproc.open', subprocCalls, [['C:\\Windows\\notepad.exe', '']]);
+    checkEq('自定义命令调用 subproc.open 并展开 %PATH%', subprocCalls, [['C:\\Windows\\notepad.exe', '报告.txt']]);
     checkEq('自定义命令执行后关闭菜单', menu.closeCount, 1);
+
+    const iconMenu = createFakeMenu(NATIVE);
+    applyProfile(
+        asMenu(iconMenu),
+        pProfile([
+            pItem('r:R1', { icon: { source: 'svg', svg: '<svg viewBox="0 0 16 16"><path d="M0 0H1"/></svg>' } }),
+            pItem('r:R3', { icon: { source: 'svg', svg: '<svg fill="currentColor"><path/></svg>' } })
+        ]),
+        infoOf({ kind: 'files' })
+    );
+    checkEq('没写 fill 的图标按菜单主题补上填充色', findItem(iconMenu.items, '打开')?.data().icon_svg, '<svg fill="#f2f2f2" viewBox="0 0 16 16"><path d="M0 0H1"/></svg>');
+    checkEq('自带 fill 的图标只替换 currentColor', findItem(iconMenu.items, '复制')?.data().icon_svg, '<svg fill="#f2f2f2"><path/></svg>');
+
+    const nested = createFakeMenu(NATIVE);
+    applyProfile(asMenu(nested), pProfile([pGroup('工具', [itemNode(null, '复制路径', { type: 'copy', text: 'x' })])]), infoOf({ kind: 'files' }));
+    const nestedSub = openSubmenu(findItem(nested.items, '工具')!);
+    runAction(findItem(nestedSub.items, '复制路径')!);
+    checkEq('分组里的自定义命令关掉整个菜单', [nested.closeCount, nestedSub.closeCount], [1, 0]);
+
+    const blank = createFakeMenu(NATIVE);
+    const blankResult = applyProfile(asMenu(blank), pProfile([pItem('r:R1', { hidden: true })]), infoOf({ kind: 'files' }));
+    checkEq('规则把所有项都隐藏时菜单确实清空', [blankResult.applied, blankResult.reason, namesOf(describeMenu(blank))], [true, 'empty-plan', []]);
 };
 
 const losslessTests = () => {
@@ -587,11 +750,12 @@ const settingsTests = () => {
     checkEq('空 label 归一为 null', (fixed.profiles.files.nodes[0] as ItemNode).label, null);
     checkEq('空分组标签兜底', (fixed.profiles.files.nodes[2] as GroupNode).label, '分组');
     check('unmanaged 在合法取值内', MENU_KINDS.every(kind => (['keep-end', 'keep-original', 'hide'] as string[]).includes(fixed.profiles[kind].unmanaged)));
-    check('非法 unmanaged 回退 keep-end', fixed.profiles.files.unmanaged === 'keep-end');
+    check('非法 unmanaged 回退到默认的 keep-original', fixed.profiles.files.unmanaged === emptyProfile('files').unmanaged && fixed.profiles.files.unmanaged === 'keep-original');
     check('分组标签非空', MENU_KINDS.every(kind => flatten(fixed.profiles[kind].nodes).every(entry => entry.node.kind !== 'group' || entry.node.label.trim().length > 0)));
     const nodeIds = flatten(fixed.profiles.files.nodes).map(entry => entry.node.id);
     check('自动补出的节点 id 非空且唯一', nodeIds.every(id => typeof id === 'string' && id.length > 0) && new Set(nodeIds).size === nodeIds.length);
-    checkEq('布尔与枚举兜底', [fixed.showMenuEntry, fixed.logLevel, fixed.version], [true, 'basic', SCHEMA_VERSION]);
+    checkEq('布尔与枚举兜底', [fixed.showMenuEntry, fixed.logLevel], [true, 'basic']);
+    check('不再写出无人读取的 version 字段', !('version' in fixed));
     checkEq('坏快照被过滤', Object.keys(fixed.snapshots), ['files']);
     checkEq('快照条目被清洗', fixed.snapshots.files?.items.map(item => item.key), ['a']);
     checkEq('快照字段完整', Object.keys(fixed.snapshots.files ?? {}).sort(), ['at', 'className', 'executable', 'items', 'kind', 'path', 'selection', 'windowTitle']);
@@ -602,6 +766,34 @@ const settingsTests = () => {
     const roundTrip = normalizeSettings(JSON.parse(JSON.stringify(once)));
     check('JSON 往返后仍然一致', deepEqual(roundTrip, normalizeSettings(once)));
     check('二次往返稳定', deepEqual(normalizeSettings(JSON.parse(JSON.stringify(roundTrip))), roundTrip));
+};
+
+/* ------------------------------------------------------------- store */
+
+const storeTests = () => {
+    section('createStore');
+
+    const writes: Settings[] = [];
+    const store = createStore(defaultSettings(), next => writes.push(next), 60_000);
+    const seen: Settings[] = [];
+    const stop = store.subscribe(next => seen.push(next));
+    check('订阅时先推一次当前设置', seen.length === 1 && seen[0] === store.get());
+
+    const snap = canvasSnap(['r:A']);
+    store.replace({ ...store.get(), snapshots: { files: snap } });
+    store.updateProfile('files', { ...store.get().profiles.files, enabled: true });
+    check('编辑器上报的 profile 不会冲掉模块侧的新快照', store.get().snapshots.files === snap && store.get().profiles.files.enabled);
+    check('每次变化都推给订阅者', seen.length === 3 && seen[2] === store.get());
+    checkEq('防抖期间不写盘', writes.length, 0);
+    store.flush();
+    check('flush 立刻写出最后一次修改', writes.length === 1 && writes[0] === store.get());
+    store.flush();
+    checkEq('没有待写内容时 flush 不重复写', writes.length, 1);
+
+    stop();
+    store.updateProfile('desktop', { ...store.get().profiles.desktop, enabled: true });
+    checkEq('退订后不再推送', seen.length, 3);
+    store.flush();
 };
 
 /* ------------------------------------------------------------- i18n */
@@ -618,11 +810,14 @@ modelTests();
 contextTests();
 captureTests();
 planTests();
+warningTests();
 canvasTests();
+historyTests();
 shortcutTests();
 applyTests();
 losslessTests();
 settingsTests();
+storeTests();
 i18nTests();
 
 console.log(`\n=== 通过 ${passed} / 失败 ${failures.length} ===`);

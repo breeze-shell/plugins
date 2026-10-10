@@ -1,6 +1,7 @@
 import * as shell from 'mshell';
-import { ItemNode, ItemRef, MenuKind, Node, Profile, Snapshot, SnapshotItem } from './types';
-import { itemNode } from './model';
+import { ItemNode, ItemRef, MenuKind, Node, Profile, Snapshot, SnapshotItem, UnmanagedPolicy } from './types';
+import { itemNode, reidentify } from './model';
+import { menuIcon } from './theme';
 
 export type CapturedItem = {
     key: string;
@@ -32,11 +33,16 @@ export type PlanNode =
 export type MenuContextInfo = {
     kind: MenuKind;
     path: string;
+    selected: string[];
     selection: number;
     title: string;
     className: string;
     executable: string;
 };
+
+export type PlanWarningKind = 'empty-group' | 'unknown-ref' | 'ignored-in-row' | 'dead-separator';
+
+export type PlanWarning = { id: string; kind: PlanWarningKind };
 
 const baseKeyOf = (nameResid?: string, originName?: string, name?: string): string => {
     if (nameResid) return `r:${nameResid}`;
@@ -44,25 +50,46 @@ const baseKeyOf = (nameResid?: string, originName?: string, name?: string): stri
     return `n:${name ?? ''}`;
 };
 
-export const classifyMenu = (context: shell.js_menu_context): MenuContextInfo => {
+const DESKTOP_WINDOW = /^(Progman|WorkerW)$/i;
+const SHELL_VIEW = /^(SysListView32|SHELLDLL_DefView)$/i;
+const TASKBAR_WINDOW = /^Shell_(Secondary)?TrayWnd$/i;
+
+const comparablePath = (path: string) => path.replace(/[\\/]+$/, '').toLowerCase();
+
+export const desktopPaths = (): string[] =>
+    ['USERPROFILE', 'OneDrive', 'OneDriveConsumer', 'OneDriveCommercial']
+        .map(name => shell.win32.env(name))
+        .filter((base): base is string => typeof base === 'string' && base.length > 0)
+        .map(base => comparablePath(`${base}\\Desktop`));
+
+export const classifyMenu = (context: shell.js_menu_context, desktops: string[] = desktopPaths()): MenuContextInfo => {
     const windowInfo = context.window_info;
+    const folderView = context.folder_view;
+    const selected = folderView?.selected_files ?? [];
     const info = {
-        path: '',
-        selection: 0,
+        path: folderView?.current_path ?? '',
+        selected,
+        selection: selected.length,
         title: windowInfo?.title ?? '',
         className: windowInfo?.class_name ?? '',
         executable: windowInfo?.executable_path ?? ''
     };
 
-    const folderView = context.folder_view;
-    if (folderView) {
-        const selection = folderView.selected_files?.length ?? 0;
-        return { ...info, kind: selection > 0 ? 'files' : 'folder', path: folderView.current_path ?? '', selection };
-    }
-
-    if (/^(Progman|WorkerW|SHELLDLL_DefView)$/i.test(info.className)) return { ...info, kind: 'desktop' };
-    if (/^Shell_(Secondary)?TrayWnd$/i.test(info.className)) return { ...info, kind: 'taskbar' };
+    const onDesktop =
+        DESKTOP_WINDOW.test(info.className) || (SHELL_VIEW.test(info.className) && (!folderView || desktops.includes(comparablePath(info.path))));
+    if (onDesktop) return { ...info, kind: 'desktop' };
+    if (folderView) return { ...info, kind: selected.length > 0 ? 'files' : 'folder' };
+    if (TASKBAR_WINDOW.test(info.className)) return { ...info, kind: 'taskbar' };
     return { ...info, kind: 'other' };
+};
+
+const quoted = (path: string) => (/\s/.test(path) ? `"${path}"` : path);
+
+export const expandArgs = (args: string, info: MenuContextInfo): string => {
+    const targets = info.selected.length > 0 ? info.selected : info.path ? [info.path] : [];
+    return args.replace(/%(PATH|FOLDER)%/gi, (_, name: string) =>
+        name.toUpperCase() === 'FOLDER' ? (info.path ? quoted(info.path) : '') : targets.map(quoted).join(' ')
+    );
 };
 
 export const matchesProfileContext = (profile: Profile, info: MenuContextInfo): boolean => {
@@ -113,16 +140,6 @@ export const captureMenu = (menu: shell.menu_controller): CapturedItem[] => {
 
     return out;
 };
-
-export const toRef = (item: CapturedItem): ItemRef => ({
-    key: item.key,
-    name: item.name,
-    originName: item.originName,
-    nameResid: item.nameResid,
-    wID: item.wID,
-    hotkey: item.hotkey,
-    hasSubmenu: item.hasSubmenu
-});
 
 export const makeSnapshot = (items: CapturedItem[], info: MenuContextInfo): Snapshot => ({
     at: Date.now(),
@@ -179,7 +196,6 @@ const snapshotIndexOf = (snapshot: Snapshot | null, key: string): number => {
     return snapshot.items.findIndex(item => item.key === key);
 };
 
-// 画布 = 规则树 + 还没被规则覆盖的原生项, 顺序尽量贴近菜单真实顺序
 export const buildCanvas = (profile: Profile, snapshot: Snapshot | null, expanded: string[]): CanvasRow[] => {
     const managed = new Set<string>();
     const walkManaged = (nodes: Node[]) => {
@@ -225,7 +241,7 @@ export const buildCanvas = (profile: Profile, snapshot: Snapshot | null, expande
         return rows.concat(virtualRows.map(row => ({ ...row, hiddenByPolicy: profile.unmanaged === 'hide' })));
     }
 
-    // keep-original: 未纳入的原生项插在它原来的邻居之间
+    const sources = sourcesOf(snapshotSources(snapshot));
     const pending = virtualRows.slice();
     const flushBefore = (anchorIndex: number) => {
         const take: CanvasRow[] = [];
@@ -241,9 +257,10 @@ export const buildCanvas = (profile: Profile, snapshot: Snapshot | null, expande
 
     const walkOrdered = (nodes: Node[], parentId: string | null, depth: number) => {
         nodes.forEach((node, index) => {
-            if (depth === 0 && parentId === null && node.kind === 'item' && node.ref) {
-                const anchor = snapshotIndexOf(snapshot, node.ref.key);
-                if (anchor >= 0) flushBefore(anchor);
+            if (parentId === null) {
+                const planned = planNodeOf(node, sources, new Set());
+                const anchor = planned ? firstSourceIndex(planned) : null;
+                if (anchor !== null) flushBefore(anchor);
             }
             rows.push(rowOf(node, parentId, index, depth));
             if (node.kind === 'group' && expanded.includes(node.id)) walkOrdered(node.children, node.id, depth + 1);
@@ -251,6 +268,24 @@ export const buildCanvas = (profile: Profile, snapshot: Snapshot | null, expande
     };
     walkOrdered(profile.nodes, null, 0);
     return rows.concat(pending);
+};
+
+export const adoptUnmanaged = (profile: Profile, snapshot: Snapshot | null): { nodes: Node[]; added: number } => {
+    const rows = buildCanvas(profile, snapshot, []);
+    const nodes = profile.nodes.slice();
+    let at = nodes.length;
+    let added = 0;
+    for (let i = rows.length - 1; i >= 0; i -= 1) {
+        const row = rows[i];
+        if (!row.virtual) {
+            at = row.index;
+            continue;
+        }
+        const node = reidentify(row.node);
+        nodes.splice(at, 0, row.hiddenByPolicy && node.kind !== 'sep' ? { ...node, hidden: true } : node);
+        added += 1;
+    }
+    return { nodes, added };
 };
 
 const markConsumed = (node: Node, sources: Map<string, CapturedItem>, used: Set<string>) => {
@@ -264,7 +299,29 @@ const markConsumed = (node: Node, sources: Map<string, CapturedItem>, used: Set<
     }
 };
 
-const planNodeOf = (node: Node, sources: Map<string, CapturedItem>, used: Set<string>): PlanNode | null => {
+type Drop = { id: string; kind: PlanWarningKind };
+
+type Traced = { node: PlanNode; id: string | null };
+
+const tidyTraced = (traced: Traced[], drops?: Drop[]): Traced[] => {
+    const dead = (entry: Traced) => {
+        if (entry.id) drops?.push({ id: entry.id, kind: 'dead-separator' });
+    };
+    const kept: Traced[] = [];
+    for (const entry of traced) {
+        if (entry.node.kind === 'sep' && (kept.length === 0 || kept[kept.length - 1].node.kind === 'sep')) {
+            dead(entry);
+            continue;
+        }
+        kept.push(entry);
+    }
+    while (kept.length > 0 && kept[kept.length - 1].node.kind === 'sep') dead(kept.pop() as Traced);
+    return kept;
+};
+
+export const tidyPlan = (plan: PlanNode[]): PlanNode[] => tidyTraced(plan.map(node => ({ node, id: null }))).map(entry => entry.node);
+
+const planNodeOf = (node: Node, sources: Map<string, CapturedItem>, used: Set<string>, drops?: Drop[]): PlanNode | null => {
     if (node.kind !== 'sep' && node.hidden) {
         // 隐藏的节点整个丢掉, 同时把它吃掉的原生项标记掉, 免得被当成"未列项"捡回来
         markConsumed(node, sources, used);
@@ -274,28 +331,36 @@ const planNodeOf = (node: Node, sources: Map<string, CapturedItem>, used: Set<st
     if (node.kind === 'sep') return { kind: 'sep' };
 
     if (node.kind === 'group') {
-        const children: PlanNode[] = [];
+        const traced: Traced[] = [];
         for (const child of node.children) {
-            const planned = planNodeOf(child, sources, used);
-            if (planned) children.push(planned);
+            if (node.layout === 'row' && child.kind === 'group' && !child.hidden) {
+                markConsumed(child, sources, used);
+                drops?.push({ id: child.id, kind: 'ignored-in-row' });
+                continue;
+            }
+            const planned = planNodeOf(child, sources, used, drops);
+            if (planned) traced.push({ node: planned, id: child.id });
         }
-        return children.length === 0 ? null : { kind: 'group', layout: node.layout, label: node.label, icon: node.icon, children };
+        const children = tidyTraced(traced, drops).map(entry => entry.node);
+        if (children.length === 0) {
+            drops?.push({ id: node.id, kind: 'empty-group' });
+            return null;
+        }
+        return { kind: 'group', layout: node.layout, label: node.label, icon: node.icon, children };
     }
 
     const source = node.ref ? sources.get(node.ref.key) ?? null : null;
-    if (!source && !node.command) return null;
+    if (!source && !node.command) {
+        drops?.push({ id: node.id, kind: 'unknown-ref' });
+        return null;
+    }
     if (source) used.add(source.key);
 
     return { kind: 'item', source, label: node.label, icon: node.icon, disabled: node.disabled, command: node.command };
 };
 
-const passthrough = (item: CapturedItem): PlanNode => ({
-    kind: 'item',
-    source: item,
-    label: null,
-    icon: { source: 'original' },
-    disabled: false
-});
+const passthrough = (item: CapturedItem): PlanNode =>
+    item.separator ? { kind: 'sep' } : { kind: 'item', source: item, label: null, icon: { source: 'original' }, disabled: false };
 
 const firstSourceIndex = (node: PlanNode): number | null => {
     if (node.kind === 'item') return node.source ? node.source.index : null;
@@ -310,55 +375,68 @@ const firstSourceIndex = (node: PlanNode): number | null => {
     return null;
 };
 
-export const tidyPlan = (plan: PlanNode[]): PlanNode[] => {
-    const out: PlanNode[] = [];
-    for (const node of plan) {
-        if (node.kind === 'sep' && (out.length === 0 || out[out.length - 1].kind === 'sep')) continue;
-        out.push(node);
-    }
-    while (out.length > 0 && out[out.length - 1].kind === 'sep') out.pop();
-    return out;
-};
-
-export const planMenu = (captured: CapturedItem[], profile: Profile): PlanNode[] => {
+const sourcesOf = (captured: CapturedItem[]): Map<string, CapturedItem> => {
     const sources = new Map<string, CapturedItem>();
     for (const item of captured) if (!item.separator) sources.set(item.key, item);
+    return sources;
+};
 
-    const used = new Set<string>();
-    const plan: PlanNode[] = [];
-    for (const node of profile.nodes) {
-        const planned = planNodeOf(node, sources, used);
-        if (planned) plan.push(planned);
-    }
-
-    if (profile.unmanaged === 'hide') return tidyPlan(plan);
-
-    const leftovers = captured.filter(item => !item.separator && !used.has(item.key));
-    if (profile.unmanaged === 'keep-end') {
-        for (const item of leftovers) plan.push(passthrough(item));
-        return tidyPlan(plan);
-    }
+const placeLeftovers = (traced: Traced[], leftovers: CapturedItem[], policy: UnmanagedPolicy): Traced[] => {
+    if (policy === 'hide') return traced;
+    const out = traced.slice();
+    if (policy === 'keep-end') return out.concat(leftovers.map(item => ({ node: passthrough(item), id: null })));
 
     for (const item of leftovers) {
-        let position = plan.length;
-        for (let i = 0; i < plan.length; i++) {
-            const index = firstSourceIndex(plan[i]);
+        let position = out.length;
+        for (let i = 0; i < out.length; i++) {
+            const index = firstSourceIndex(out[i].node);
             if (index !== null && index > item.index) {
                 position = i;
                 break;
             }
         }
-        plan.splice(position, 0, passthrough(item));
+        out.splice(position, 0, { node: passthrough(item), id: null });
     }
-
-    return tidyPlan(plan);
+    return out;
 };
 
-const resolveIconSvg = (icon: ItemNode['icon']): string | null => {
-    if (icon.source !== 'svg') return null;
-    const color = shell.breeze.is_light_theme() ? '#1a1a1a' : '#f2f2f2';
-    return icon.svg.replace(/currentColor/g, color);
+const planTraced = (captured: CapturedItem[], profile: Profile, drops?: Drop[]): Traced[] => {
+    const sources = sourcesOf(captured);
+    const used = new Set<string>();
+    const traced: Traced[] = [];
+    for (const node of profile.nodes) {
+        const planned = planNodeOf(node, sources, used, drops);
+        if (planned) traced.push({ node: planned, id: node.id });
+    }
+    const leftovers = captured.filter(item => item.separator || !used.has(item.key));
+    return tidyTraced(placeLeftovers(traced, leftovers, profile.unmanaged), drops);
 };
+
+export const planMenu = (captured: CapturedItem[], profile: Profile): PlanNode[] => planTraced(captured, profile).map(entry => entry.node);
+
+const snapshotSources = (snapshot: Snapshot | null): CapturedItem[] =>
+    (snapshot?.items ?? []).map((item, index) => ({
+        key: item.key,
+        index,
+        controller: null as unknown as shell.menu_item_controller,
+        data: {} as shell.js_menu_data,
+        name: item.name,
+        originName: item.originName,
+        nameResid: item.nameResid,
+        wID: item.wID,
+        hotkey: item.hotkey,
+        disabled: item.disabled,
+        separator: item.separator,
+        hasSubmenu: item.hasSubmenu
+    }));
+
+export const analysePlan = (profile: Profile, snapshot: Snapshot | null): PlanWarning[] => {
+    const drops: Drop[] = [];
+    planTraced(snapshotSources(snapshot), profile, drops);
+    return drops;
+};
+
+const resolveIconSvg = (icon: ItemNode['icon']): string | null => (icon.source === 'svg' ? menuIcon(icon.svg) : null);
 
 const applyIcon = (data: shell.js_menu_data, icon: ItemNode['icon']) => {
     if (icon.source === 'original') {
@@ -377,16 +455,16 @@ const applyIcon = (data: shell.js_menu_data, icon: ItemNode['icon']) => {
     data.icon_bitmap = reset;
 };
 
-const customAction = (command: NonNullable<ItemNode['command']>, menu: shell.menu_controller) => () => {
+const customAction = (command: NonNullable<ItemNode['command']>, menu: shell.menu_controller, info: MenuContextInfo) => () => {
     try {
-        if (command.type === 'open') shell.subproc.open(command.path, command.args ?? '');
+        if (command.type === 'open') shell.subproc.open(command.path, expandArgs(command.args ?? '', info));
         else shell.clipboard.write_text(command.text ?? '');
     } finally {
         menu.close();
     }
 };
 
-const itemData = (node: Extract<PlanNode, { kind: 'item' }>, menu: shell.menu_controller): shell.js_menu_data => {
+const itemData = (node: Extract<PlanNode, { kind: 'item' }>, root: shell.menu_controller, info: MenuContextInfo): shell.js_menu_data => {
     const source = node.source;
     const data: shell.js_menu_data = source ? { ...source.data } : { type: 'button' };
     const label = node.label ?? source?.name ?? '';
@@ -401,7 +479,7 @@ const itemData = (node: Extract<PlanNode, { kind: 'item' }>, menu: shell.menu_co
         data.disabled = node.disabled ? true : source.disabled;
     } else {
         data.disabled = node.disabled;
-        data.action = node.command ? customAction(node.command, menu) : () => menu.close();
+        data.action = node.command ? customAction(node.command, root, info) : () => root.close();
     }
 
     applyIcon(data, node.icon);
@@ -413,7 +491,7 @@ const groupIcon = (icon: ItemNode['icon']): Partial<shell.js_menu_data> => {
     return svg === null ? {} : { icon_svg: svg };
 };
 
-const appendPlan = (menu: shell.menu_controller, nodes: PlanNode[]) => {
+const appendPlan = (menu: shell.menu_controller, nodes: PlanNode[], root: shell.menu_controller, info: MenuContextInfo) => {
     for (const node of nodes) {
         if (node.kind === 'sep') {
             menu.append_item({ type: 'spacer' });
@@ -421,7 +499,7 @@ const appendPlan = (menu: shell.menu_controller, nodes: PlanNode[]) => {
         }
 
         if (node.kind === 'item') {
-            menu.append_item(itemData(node, menu));
+            menu.append_item(itemData(node, root, info));
             continue;
         }
 
@@ -429,7 +507,7 @@ const appendPlan = (menu: shell.menu_controller, nodes: PlanNode[]) => {
             const group = menu.append_parent_item();
             if (!group) continue;
             for (const child of node.children) {
-                if (child.kind === 'item') group.append_child(itemData(child, menu));
+                if (child.kind === 'item') group.append_child(itemData(child, root, info));
                 else if (child.kind === 'sep') group.append_child({ type: 'spacer' });
             }
             continue;
@@ -439,7 +517,7 @@ const appendPlan = (menu: shell.menu_controller, nodes: PlanNode[]) => {
             type: 'button',
             name: node.label,
             ...groupIcon(node.icon),
-            submenu: (submenu: shell.menu_controller) => appendPlan(submenu, node.children)
+            submenu: (submenu: shell.menu_controller) => appendPlan(submenu, node.children, root, info)
         });
     }
 };
@@ -464,10 +542,8 @@ export const applyProfile = (
     if (items.length === 0) return { applied: false, reason: 'empty-menu', captured: 0, planned: 0 };
 
     const plan = planMenu(items, profile);
-    if (plan.length === 0) return { applied: false, reason: 'empty-plan', captured: items.length, planned: 0 };
-
     menu.clear();
-    appendPlan(menu, plan);
+    appendPlan(menu, plan, menu, info);
 
-    return { applied: true, reason: 'ok', captured: items.length, planned: plan.length };
+    return { applied: true, reason: plan.length === 0 ? 'empty-plan' : 'ok', captured: items.length, planned: plan.length };
 };

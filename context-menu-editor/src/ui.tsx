@@ -1,6 +1,5 @@
-import * as shell from 'mshell';
 import { memo, useEffect, useRef, useState, type ReactNode } from './react';
-import { COLOR_VARS, EASE_OUT, FAST, FluentTokens, Icons, Tone, fluent, toneColor } from './theme';
+import { COLOR_VARS, FAST, FluentTokens, Icons, Tone, fluent, toneColor } from './theme';
 
 export const iconElement = (svg: string, width = 14, color?: string) => {
     const hex = (color ?? (fluent().light ? '#000000E4' : '#FFFFFFFF')).replace('#', '');
@@ -86,63 +85,6 @@ export const useHoverActive = () => {
     };
 };
 
-const useEntrance = (delay: number) => {
-    const [shown, setShown] = useState(false);
-    useEffect(() => {
-        const id = setTimeout(() => setShown(true), 16 + delay);
-        return () => clearTimeout(id);
-    }, []);
-    return shown;
-};
-
-const ENTRANCE_VARS = ['opacity', 'padding_top', 'padding_bottom'];
-
-export const Entrance = ({ delay = 0, offset = 8, children }: { delay?: number; offset?: number; children?: ReactNode; c?: FluentTokens }) => {
-    const shown = useEntrance(delay);
-    return (
-        <flex
-            opacity={shown ? 255 : 0}
-            paddingTop={shown ? 0 : offset}
-            paddingBottom={shown ? offset : 0}
-            alignItems="stretch"
-            animatedVars={ENTRANCE_VARS}
-            animationCurve={{ duration: 200, easing: 'ease_out', vars: ENTRANCE_VARS }}
-        >
-            {children}
-        </flex>
-    );
-};
-
-export const Pill = ({
-    text,
-    fg,
-    bg,
-    fontSize = 11,
-    c
-}: {
-    text: string;
-    fg: string;
-    bg: string;
-    fontSize?: number;
-    c?: FluentTokens;
-}) => {
-    const height = Math.round(fontSize * 1.65 + 2);
-    return (
-        <flex
-            horizontal
-            height={height}
-            backgroundColor={bg}
-            borderRadius={Math.round(height / 2)}
-            paddingLeft={8}
-            paddingRight={8}
-            alignItems="center"
-            justifyContent="center"
-        >
-            <Text c={c} text={text} fontSize={fontSize} fontWeight={600} color={fg} />
-        </flex>
-    );
-};
-
 export const Badge = ({ text, fg, bg, fontSize = 11, c }: { text: string; fg: string; bg: string; fontSize?: number; c?: FluentTokens }) => (
     <flex
         horizontal
@@ -157,12 +99,6 @@ export const Badge = ({ text, fg, bg, fontSize = 11, c }: { text: string; fg: st
         <Text c={c} text={text} fontSize={fontSize} fontWeight={600} color={fg} />
     </flex>
 );
-
-export const TonePill = ({ tone, text, c, fontSize }: { tone: Tone; text: string; c?: FluentTokens; fontSize?: number }) => {
-    const tokens = c ?? fluent();
-    const style = toneColor(tone, tokens);
-    return <Pill c={tokens} text={text} fg={style.fg} bg={style.bg} fontSize={fontSize} />;
-};
 
 export const Button = ({
     label,
@@ -244,48 +180,6 @@ export const Button = ({
         >
             {icon && iconElement(icon, iconSize, fg)}
             {label && <Text c={tokens} text={label} fontSize={13} color={fg} />}
-        </flex>
-    );
-};
-
-export const IconButton = ({
-    icon,
-    onClick,
-    accent,
-    disabled,
-    c
-}: {
-    icon: string;
-    label?: string;
-    onClick?: () => void;
-    accent?: boolean;
-    disabled?: boolean;
-    c?: FluentTokens;
-}) => {
-    const tokens = c ?? fluent();
-    const hover = useHoverActive();
-    const fg = disabled ? tokens.textDisabled : accent ? tokens.accent : hover.isHovered ? tokens.text : tokens.textSecondary;
-    return (
-        <flex
-            horizontal
-            width={30}
-            height={30}
-            alignItems="center"
-            justifyContent="center"
-            borderRadius={5}
-            backgroundColor={disabled ? tokens.transparent : hover.isActive ? tokens.controlPressed : hover.isHovered ? tokens.controlHover : tokens.transparent}
-            opacity={255}
-            onClick={() => {
-                if (!disabled) onClick?.();
-            }}
-            onMouseEnter={hover.onMouseEnter}
-            onMouseLeave={hover.onMouseLeave}
-            onMouseDown={hover.onMouseDown}
-            onMouseUp={hover.onMouseUp}
-            animatedVars={COLOR_VARS}
-            animationCurve={{ ...FAST, vars: COLOR_VARS }}
-        >
-            {iconElement(icon, 15, fg)}
         </flex>
     );
 };
@@ -403,6 +297,25 @@ export const ToggleSwitch = ({
     );
 };
 
+const focusedFields = new Set<object>();
+
+export const isTyping = () => focusedFields.size > 0;
+
+const useFieldFocus = (onFocus?: () => void, onBlur?: () => void) => {
+    const token = useRef({}).current;
+    useEffect(() => () => void focusedFields.delete(token), []);
+    return {
+        onFocus: () => {
+            focusedFields.add(token);
+            onFocus?.();
+        },
+        onBlur: () => {
+            focusedFields.delete(token);
+            onBlur?.();
+        }
+    };
+};
+
 export const TextField = ({
     value,
     onChange,
@@ -427,15 +340,16 @@ export const TextField = ({
     c?: FluentTokens;
 }) => {
     const tokens = c ?? fluent();
+    const focus = useFieldFocus(onFocus, onBlur);
     return (
         <textbox
             value={value}
             placeholder={placeholder ?? ''}
             width={width}
+            {...(flexGrow !== undefined ? { flexGrow } : {})}
             height={32}
             fontSize={13}
             disabled={disabled}
-            {...(flexGrow !== undefined ? { flexGrow } : {})}
             borderRadius={5}
             paddingX={10}
             backgroundColor={tokens.control}
@@ -448,8 +362,8 @@ export const TextField = ({
             caretColor={tokens.text}
             selectionColor={tokens.accentSubtle}
             onChange={onChange}
-            onFocus={onFocus}
-            onBlur={onBlur}
+            onFocus={focus.onFocus}
+            onBlur={focus.onBlur}
             {...(onKeyDown ? { onKeyDown } : {})}
         />
     );
@@ -495,164 +409,6 @@ export const TextArea = ({
             selectionColor={tokens.accentSubtle}
             onChange={onChange}
         />
-    );
-};
-
-const KEY_ENTER = 257;
-const KEY_ESCAPE = 256;
-const KEY_UP = 265;
-const KEY_DOWN = 264;
-
-const stepDecimals = (step: number) => (step >= 1 ? 0 : Math.min(4, Math.ceil(-Math.log10(step) - 1e-9)));
-const formatNumber = (value: number, step: number) => {
-    const text = value.toFixed(stepDecimals(step));
-    return text.includes('.') ? text.replace(/\.?0+$/, '') : text;
-};
-const snapTo = (value: number, min: number, max: number, step: number) => {
-    const base = Number.isFinite(min) ? min : 0;
-    const snapped = Math.round((value - base) / step) * step + base;
-    return Number(Math.min(max, Math.max(min, snapped)).toFixed(stepDecimals(step)));
-};
-
-export const NumberBox = ({
-    value,
-    min,
-    max,
-    step = 1,
-    onChange,
-    width = 84,
-    suffix,
-    c
-}: {
-    value: number;
-    min?: number;
-    max?: number;
-    step?: number;
-    onChange: (next: number) => void;
-    width?: number;
-    suffix?: string;
-    c?: FluentTokens;
-}) => {
-    const tokens = c ?? fluent();
-    const low = min ?? Number.NEGATIVE_INFINITY;
-    const high = max ?? Number.POSITIVE_INFINITY;
-    const [draft, setDraft] = useState<string | null>(null);
-    const shown = draft ?? formatNumber(value, step);
-    const commit = (text: string | null = draft) => {
-        setDraft(null);
-        if (text === null) return;
-        const parsed = parseFloat(text.trim());
-        if (!Number.isFinite(parsed)) return;
-        const next = snapTo(parsed, low, high, step);
-        if (next !== value) onChange(next);
-    };
-    return (
-        <flex horizontal alignItems="center" gap={6}>
-            <textbox
-                value={shown}
-                width={width}
-                height={32}
-                fontSize={13}
-                borderRadius={5}
-                paddingX={10}
-                backgroundColor={tokens.control}
-                borderColor={tokens.controlStroke}
-                focusBorderColor={tokens.accent}
-                textColor={tokens.text}
-                placeholderColor={tokens.textTertiary}
-                caretColor={tokens.text}
-                selectionColor={tokens.accentSubtle}
-                onChange={setDraft}
-                onBlur={() => commit()}
-                onKeyDown={(key: number) => {
-                    if (key === KEY_ENTER) {
-                        commit();
-                        return true;
-                    }
-                    if (key === KEY_ESCAPE) {
-                        setDraft(null);
-                        return true;
-                    }
-                    if (key === KEY_UP || key === KEY_DOWN) {
-                        const base = draft !== null && Number.isFinite(parseFloat(draft)) ? parseFloat(draft) : value;
-                        setDraft(null);
-                        const next = snapTo(base + (key === KEY_UP ? step : -step), low, high, step);
-                        if (next !== value) onChange(next);
-                        return true;
-                    }
-                    return false;
-                }}
-            />
-            {suffix && <Text c={tokens} text={suffix} fontSize={12} color={tokens.textSecondary} />}
-        </flex>
-    );
-};
-
-export const ComboBox = <T,>({
-    value,
-    options,
-    onChange,
-    width = 170,
-    flexGrow,
-    placeholder,
-    c
-}: {
-    value: T;
-    options: { value: T; label: string }[];
-    onChange: (next: T) => void;
-    width?: number;
-    flexGrow?: number;
-    placeholder?: string;
-    c?: FluentTokens;
-}) => {
-    const tokens = c ?? fluent();
-    const hover = useHoverActive();
-    const current = options.find(option => option.value === value);
-    const open = () => {
-        const menu = shell.menu_controller.create_detached();
-        for (const option of options) {
-            menu.append_menu({
-                name: option.label,
-                icon_svg: option.value === value ? Icons.check : undefined,
-                action() {
-                    onChange(option.value);
-                    menu.close();
-                }
-            });
-        }
-        menu.show_at_cursor();
-    };
-    return (
-        <flex
-            horizontal
-            {...(flexGrow !== undefined ? { flexGrow } : { width })}
-            height={32}
-            alignItems="center"
-            paddingLeft={11}
-            paddingRight={10}
-            borderRadius={5}
-            borderWidth={1}
-            borderColor={hover.isHovered ? tokens.controlStrong : tokens.controlStroke}
-            backgroundColor={hover.isActive ? tokens.controlPressed : hover.isHovered ? tokens.controlHover : tokens.control}
-            onClick={open}
-            onMouseEnter={hover.onMouseEnter}
-            onMouseLeave={hover.onMouseLeave}
-            onMouseDown={hover.onMouseDown}
-            onMouseUp={hover.onMouseUp}
-            animatedVars={COLOR_VARS}
-            animationCurve={{ ...FAST, vars: COLOR_VARS }}
-        >
-            <Text
-                c={tokens}
-                text={current?.label ?? placeholder ?? String(value)}
-                fontSize={13}
-                color={tokens.text}
-                maxWidth={flexGrow !== undefined ? -1 : width - 40}
-                truncate={flexGrow !== undefined ? undefined : 22}
-            />
-            <spacer />
-            {iconElement(Icons.chevronDown, 14, tokens.textSecondary)}
-        </flex>
     );
 };
 
@@ -773,63 +529,6 @@ export const Chip = ({
         >
             {icon && iconElement(icon, 10, fg)}
             <Text c={tokens} text={label} fontSize={10} fontWeight={600} color={fg} />
-        </flex>
-    );
-};
-
-export const ChipToggle = ({
-    label,
-    selected,
-    onClick,
-    color,
-    c
-}: {
-    label: string;
-    selected: boolean;
-    onClick?: () => void;
-    color: { fg: string; bg: string };
-    c?: FluentTokens;
-}) => {
-    const tokens = c ?? fluent();
-    const hover = useHoverActive();
-    return (
-        <flex
-            horizontal
-            alignItems="center"
-            gap={6}
-            height={26}
-            paddingLeft={8}
-            paddingRight={11}
-            borderRadius={13}
-            backgroundColor={selected ? color.bg : hover.isHovered ? tokens.hoverOverlay : tokens.transparent}
-            borderWidth={1}
-            borderColor={selected ? color.fg : tokens.controlStroke}
-            onClick={onClick}
-            onMouseEnter={hover.onMouseEnter}
-            onMouseLeave={hover.onMouseLeave}
-            animatedVars={COLOR_VARS}
-            animationCurve={{ ...FAST, vars: COLOR_VARS }}
-        >
-            <flex width={8} height={8} borderRadius={4} backgroundColor={selected ? color.fg : tokens.controlStrong} />
-            <Text c={tokens} text={label} fontSize={12} fontWeight={selected ? 600 : 400} color={selected ? color.fg : tokens.textSecondary} />
-        </flex>
-    );
-};
-
-export const ProgressBar = ({ value, width, c }: { value: number | null; width?: number; c?: FluentTokens }) => {
-    const tokens = c ?? fluent();
-    const fraction = value === null ? 0.25 : Math.min(1, Math.max(0, value));
-    return (
-        <flex horizontal {...(width !== undefined ? { width } : { flexGrow: 1 })} height={4} alignItems="center">
-            <flex
-                {...(width !== undefined ? { width: Math.max(4, fraction * width) } : { flexGrow: fraction, flexShrink: 0 })}
-                height={3}
-                borderRadius={1.5}
-                backgroundColor={tokens.accent}
-                animatedVars={['width']}
-                animationCurve={{ duration: 200, easing: 'ease_out', vars: ['width'] }}
-            />
-            <flex flexGrow={Math.max(0, 1 - fraction)} height={1} backgroundColor={tokens.controlStrong} />
         </flex>
     );
 };
@@ -974,10 +673,3 @@ export const Card = ({
         </flex>
     );
 };
-
-export const useAutoFocus = () => {
-    const ref = useRef(true);
-    return ref.current;
-};
-
-export const EASE = EASE_OUT;
