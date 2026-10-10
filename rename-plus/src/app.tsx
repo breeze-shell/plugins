@@ -32,6 +32,8 @@ export const WINDOW_HEIGHT = 720;
 
 const KEY_ESCAPE = 256;
 const KEY_ENTER = 257;
+const KEY_UP = 265;
+const KEY_DOWN = 264;
 const COL_PRESETS = 208;
 const COL_PREVIEW = 408;
 const COL_PARAMS = WINDOW_WIDTH - 2 * Space.xl - 2 * Space.xl - COL_PRESETS - COL_PREVIEW;
@@ -81,7 +83,7 @@ const PresetRow = memo(({ preset, selected, onClick }: { preset: Preset; selecte
             horizontal
             alignItems="center"
             gap={Space.lg}
-            height={44}
+            height={54}
             flexShrink={0}
             paddingLeft={Space.md}
             paddingRight={Space.md}
@@ -98,6 +100,7 @@ const PresetRow = memo(({ preset, selected, onClick }: { preset: Preset; selecte
             <flex
                 width={26}
                 height={26}
+                flexShrink={0}
                 borderRadius={Radius.md}
                 justifyContent="center"
                 alignItems="center"
@@ -105,9 +108,12 @@ const PresetRow = memo(({ preset, selected, onClick }: { preset: Preset; selecte
             >
                 {iconElement(preset.icon, 15, selected ? c.accentText : c.textSecondary)}
             </flex>
-            <flex flexGrow={1} flexShrink={1}>
+            <flex flexGrow={1} flexShrink={1} gap={1}>
                 <Text size={Font.body} weight={selected ? 600 : 400} tone={selected ? 'primary' : 'secondary'} ellipsis>
                     {preset.title}
+                </Text>
+                <Text size={Font.tiny} tone="tertiary" ellipsis>
+                    {preset.description}
                 </Text>
             </flex>
         </flex>
@@ -578,7 +584,14 @@ const RenameApp = ({ items, settings, onSettings, requestModTimes, onClose }: Re
     const overLimit = applied ? 0 : Math.max(0, plan.rows.length - PREVIEW_LIMIT);
 
     // 没有输入控件聚焦时 shell 会把按键冒泡到根节点, Esc 关窗、Enter 应用。
+    const presetIds = [...(itemList.length === 1 ? [MANUAL_PRESET.id] : []), ...PRESETS.map(item => item.id), SCRIPT_PRESET.id];
     const onKeyDown = (key: number) => {
+        if (key === KEY_DOWN || key === KEY_UP) {
+            const step = key === KEY_DOWN ? 1 : -1;
+            const at = presetIds.indexOf(presetId);
+            setPresetId(presetIds[(at + step + presetIds.length) % presetIds.length]);
+            return true;
+        }
         if (key === KEY_ESCAPE) {
             onClose();
             return true;
@@ -719,9 +732,6 @@ const RenameApp = ({ items, settings, onSettings, requestModTimes, onClose }: Re
                     <flex gap={2} flexShrink={0}>
                         <Text size={Font.heading} weight={600}>
                             {preset.title}
-                        </Text>
-                        <Text size={Font.tiny} tone="tertiary" maxWidth={430} minWidth={0}>
-                            {preset.description}
                         </Text>
                     </flex>
                     <Divider />
