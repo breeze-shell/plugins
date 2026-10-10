@@ -629,6 +629,7 @@ export const NumberField = ({
                 caretColor={c.text}
                 selectionColor={c.accentSubtle}
                 onChange={setDraft}
+                onFocus={instance => instance.select_all()}
                 onBlur={() => commit()}
                 onKeyDown={(key: number) => {
                     if (key === KEY_ENTER) {

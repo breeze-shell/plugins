@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 # 在 e2e 沙箱里跑「重命名 Plus」: 沙箱 home + 编译成 explorer.exe 的宿主进程 +
 # 真实 shell.dll。探针 (test/probe.js) 在真实 QuickJS 运行时里建测试文件、套用
 # 预设、撤销、打开窗口, 最后由宿主的 js-interact 场景给窗口截图。
@@ -11,6 +11,8 @@ param(
     [string] $WindowTitle = '重命名 Plus',
     [string] $Preset = 'numbering',
     [string] $Worktree,
+    [string] $Steps,
+    [int] $EvidenceDelayMs = 0,
     [switch] $Single,
     [switch] $RebuildHost
 )
@@ -51,15 +53,20 @@ $probe = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'probe.js') -Raw
 $probe = $probe.Replace('__PRESET_ID__', $Preset).Replace('__SINGLE__', $(if ($Single) { 'true' } else { 'false' }))
 [System.IO.File]::WriteAllText((Join-Path $scriptsDir 'probe.js'), $probe, [System.Text.UTF8Encoding]::new($false))
 Set-Content -LiteralPath (Join-Path $configDir '.e2e') -Value 'sandbox e2e hook' -Encoding ASCII
+# fresh plugin config every run: an interaction test must not leak params into the assertions
+Remove-Item -LiteralPath (Join-Path $configDir 'config.json') -Force -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath (Join-Path $outDir 'js-window.bmp') -ErrorAction SilentlyContinue
 
 Write-Host '沙箱 scripts:' -ForegroundColor DarkGray
 Get-ChildItem -LiteralPath $scriptsDir | ForEach-Object { Write-Host "  $($_.Name)" -ForegroundColor DarkGray }
 
+$scenario = if ($Steps) { 'js-script' } else { 'js-interact' }
 $runArgs = @(
     '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $Root 'e2e\run.ps1'),
-    '-Scenario', 'js-interact', '-WindowTitle', $WindowTitle
+    '-Scenario', $scenario, '-WindowTitle', $WindowTitle
 )
+if ($Steps) { $runArgs += @('-Steps', $Steps) }
+if ($EvidenceDelayMs -gt 0) { $runArgs += @('-EvidenceDelayMs', $EvidenceDelayMs) }
 if ($RebuildHost) { $runArgs += '-RebuildHost' }
 if ($Worktree) { $runArgs += @('-Worktree', $Worktree) }
 
@@ -104,6 +111,13 @@ foreach ($check in $checks) {
 $bmp = Join-Path $outDir 'js-window.bmp'
 if (Test-Path -LiteralPath $bmp) {
     Add-Type -AssemblyName System.Drawing
+    Get-ChildItem -LiteralPath $outDir -Filter 'step-*.bmp' -ErrorAction SilentlyContinue | ForEach-Object {
+        $stepImage = [System.Drawing.Image]::FromFile($_.FullName)
+        $stepPng = Join-Path $outDir ($_.BaseName + '.png')
+        $stepImage.Save($stepPng, [System.Drawing.Imaging.ImageFormat]::Png)
+        $stepImage.Dispose()
+        Write-Host "步进截图: $stepPng" -ForegroundColor DarkGray
+    }
     $image = [System.Drawing.Image]::FromFile($bmp)
     $png = Join-Path $outDir 'js-window.png'
     $image.Save($png, [System.Drawing.Imaging.ImageFormat]::Png)

@@ -39,6 +39,7 @@ declare module 'react' {
                 onMouseDown?: () => void;
                 onMouseUp?: () => void;
                 onMouseMove?: (x: number, y: number) => void;
+                onKeyDown?: (key: number, shiftKey: boolean, ctrlKey: boolean, altKey: boolean, metaKey: boolean) => boolean;
                 justifyContent?: 'start' | 'center' | 'end' | 'space-between' | 'space-around' | 'space-evenly' | 'free';
                 alignItems?: 'start' | 'center' | 'end' | 'stretch' | 'free';
                 horizontal?: boolean;
@@ -109,8 +110,8 @@ declare module 'react' {
                 caretColor?: string;
                 compositionUnderlineColor?: string;
                 onChange?: (value: string) => void;
-                onFocus?: () => void;
-                onBlur?: () => void;
+                onFocus?: (instance: import('mshell').breeze_ui.js_textbox_widget) => void;
+                onBlur?: (instance: import('mshell').breeze_ui.js_textbox_widget) => void;
                 onKeyDown?: (key: number, shiftKey: boolean, ctrlKey: boolean, altKey: boolean, metaKey: boolean) => boolean;
                 key?: string | number;
                 animatedVars?: string[];

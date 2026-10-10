@@ -30,6 +30,8 @@ import {
 export const WINDOW_WIDTH = 1060;
 export const WINDOW_HEIGHT = 720;
 
+const KEY_ESCAPE = 256;
+const KEY_ENTER = 257;
 const COL_PRESETS = 208;
 const COL_PREVIEW = 408;
 const COL_PARAMS = WINDOW_WIDTH - 2 * Space.xl - 2 * Space.xl - COL_PRESETS - COL_PREVIEW;
@@ -575,6 +577,18 @@ const RenameApp = ({ items, settings, onSettings, requestModTimes, onClose }: Re
     const canApply = plan.canApply && !blockedByScript && !applying;
     const overLimit = applied ? 0 : Math.max(0, plan.rows.length - PREVIEW_LIMIT);
 
+    // 没有输入控件聚焦时 shell 会把按键冒泡到根节点, Esc 关窗、Enter 应用。
+    const onKeyDown = (key: number) => {
+        if (key === KEY_ESCAPE) {
+            onClose();
+            return true;
+        }
+        if (key === KEY_ENTER && canApply) {
+            apply();
+            return true;
+        }
+        return false;
+    };
     const header = (
         <>
             <flex horizontal alignItems="center" gap={Space.xl} height={64} flexShrink={0} paddingLeft={Space.xxl} paddingRight={Space.lg}>
@@ -597,7 +611,7 @@ const RenameApp = ({ items, settings, onSettings, requestModTimes, onClose }: Re
 
     if (itemList.length === 0) {
         return (
-            <flex width={WINDOW_WIDTH} height={WINDOW_HEIGHT} backgroundColor={c.windowBg} alignItems="stretch">
+            <flex width={WINDOW_WIDTH} height={WINDOW_HEIGHT} backgroundColor={c.windowBg} alignItems="stretch" onKeyDown={onKeyDown}>
                 {header}
                 <flex flexGrow={1} padding={Space.xl} alignItems="stretch">
                     <Panel c={c} grow>
@@ -638,23 +652,9 @@ const RenameApp = ({ items, settings, onSettings, requestModTimes, onClose }: Re
         <InfoBar
             severity="success"
             title={t(`已重命名 ${applied.entries.length} 项`, `Renamed ${applied.entries.length} items`)}
-            message={t('可以撤销，或换个预设继续重命名。', 'Undo it, or keep renaming with another preset.')}
+            message={t('要退回就点右上角的「撤销上次」。', 'Use "Undo last" in the top right to revert.')}
             maxTextWidth={460}
-        >
-            <flex horizontal gap={Space.md} paddingTop={Space.sm}>
-                <Button icon={Icons.undo} label={t('撤销', 'Undo')} size={Font.small} onClick={undo} />
-                <Button
-                    icon={Icons.refresh}
-                    label={t('继续重命名', 'Continue')}
-                    size={Font.small}
-                    variant="subtle"
-                    onClick={() => {
-                        setApplied(null);
-                        setBatch(null);
-                    }}
-                />
-            </flex>
-        </InfoBar>
+        />
     ) : scriptError ? (
         <InfoBar severity="danger" title={t('脚本有语法错误，无法应用', 'Fix the script before applying')} maxTextWidth={460} />
     ) : errorCount > 0 ? (
@@ -675,7 +675,7 @@ const RenameApp = ({ items, settings, onSettings, requestModTimes, onClose }: Re
     );
 
     return (
-        <flex width={WINDOW_WIDTH} height={WINDOW_HEIGHT} backgroundColor={c.windowBg} alignItems="stretch">
+        <flex width={WINDOW_WIDTH} height={WINDOW_HEIGHT} backgroundColor={c.windowBg} alignItems="stretch" onKeyDown={onKeyDown}>
             {header}
 
             <flex horizontal alignItems="center" gap={Space.lg} height={48} flexShrink={0} paddingLeft={Space.xxl} paddingRight={Space.xxl}>
