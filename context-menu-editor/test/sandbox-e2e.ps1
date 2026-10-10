@@ -1,9 +1,10 @@
 #Requires -Version 5.1
 # 在 e2e 沙箱里跑「右键菜单编辑器」: 沙箱 home + 编译成 explorer.exe 的宿主进程 + 真实 shell.dll。
 #
-# 两段:
-#   1) menu 场景   - 真实 TrackPopupMenuEx 走一遍采集与规则重建 (断言从 debug.log 里读)
-#   2) js-interact - 探针打开编辑器窗口, 宿主截图 (产物 docs/window-preview.png)
+# 三段:
+#   1) menu/default - 真实 TrackPopupMenuEx 走一遍采集与规则重建 (断言从 debug.log 里读)
+#   2) menu/rules   - 真规则作用在真实原生菜单上 (这一段会改掉宿主菜单, 所以单独跑一段)
+#   3) js-interact  - 探针打开编辑器窗口, 宿主截图 (产物 docs/window-preview.png)
 #
 # 前置: 先跑过一次 ..\..\e2e\run.ps1 (它会编译宿主进程), 被测 shell 是 worktree 里的构建产物。
 # 参数: -Root / -Worktree / -WindowTitle / -RebuildHost / -SkipWindow
@@ -38,11 +39,12 @@ Write-Host ("插件产物: {0} ({1} kB)" -f $bundle, [math]::Round((Get-Item $bu
 
 # run.ps1 -Worktree 用的沙箱是 .work\<worktree>, 插件与配置要放到同一个 home 里
 $caseDir = Join-Path $Root ".work\$Worktree"
-$homeDir = Join-Path $caseDir 'home'
-$dataDir = Join-Path $homeDir '.breeze-shell'
+$dataDir = Join-Path $caseDir 'home\.breeze-shell'
 $scriptsDir = Join-Path $dataDir 'scripts'
-$configDir = Join-Path $dataDir 'config\context-menu-editor'
+$configDir = Join-Path $dataDir 'config\右键菜单编辑器'
+$dbgLog = Join-Path $dataDir 'debug.log'
 $outDir = Join-Path $caseDir 'out'
+$bmp = Join-Path $outDir 'js-window.bmp'
 
 foreach ($dir in @($scriptsDir, $configDir, $outDir)) {
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
@@ -50,6 +52,8 @@ foreach ($dir in @($scriptsDir, $configDir, $outDir)) {
 Get-ChildItem -LiteralPath $scriptsDir -Filter *.js -ErrorAction SilentlyContinue | Remove-Item -Force
 Copy-Item -LiteralPath $bundle -Destination (Join-Path $scriptsDir 'context-menu-editor.js') -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'probe.js') -Destination (Join-Path $scriptsDir 'probe.js') -Force
+# 每次从零开始: 上一轮留下的规则会让第一段就不再是"原生菜单"
+Remove-Item -LiteralPath (Join-Path $configDir 'config.json') -ErrorAction SilentlyContinue
 Set-Content -LiteralPath (Join-Path $configDir '.e2e') -Value 'sandbox e2e hook' -Encoding ASCII
 
 Write-Host '沙箱 scripts:' -ForegroundColor DarkGray
@@ -57,8 +61,11 @@ Get-ChildItem -LiteralPath $scriptsDir | ForEach-Object { Write-Host "  $($_.Nam
 
 $child = if (Get-Command pwsh -ErrorAction SilentlyContinue) { 'pwsh' } else { 'powershell.exe' }
 
-function Invoke-Scenario {
-    param([string] $Scenario, [string] $Title)
+function Invoke-Phase {
+    param([string] $Scenario, [string] $Phase, [string] $Title)
+
+    Remove-Item -LiteralPath $dbgLog -ErrorAction SilentlyContinue
+    $env:CME_E2E_PHASE = $Phase
 
     $runArgs = @(
         '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $Root 'e2e\run.ps1'),
@@ -67,53 +74,63 @@ function Invoke-Scenario {
     if ($Title) { $runArgs += @('-WindowTitle', $Title) }
     if ($RebuildHost) { $runArgs += '-RebuildHost' }
 
-    # run.ps1 里有 exit, 必须在子进程里跑, 否则会一起结束当前会话。
-    # 子进程输出走 Out-Host, 免得混进函数的返回值里。
+    # run.ps1 里有 exit, 必须在子进程里跑; 输出走 Out-Host, 免得混进函数的返回值里。
     & {
         $ErrorActionPreference = 'Continue'
         & $child @runArgs 2>&1 | Out-Host
     }
-    return $LASTEXITCODE
+    $exit = $LASTEXITCODE
+    $env:CME_E2E_PHASE = $null
+
+    $text = if (Test-Path -LiteralPath $dbgLog) { Get-Content -LiteralPath $dbgLog -Raw } else { '' }
+    [pscustomobject]@{
+        Exit  = $exit
+        Text  = $text
+        Lines = @(($text -split "`r?`n") | Where-Object { $_ -match '\[cme-e2e\]' })
+    }
 }
 
-$menuExit = Invoke-Scenario -Scenario 'menu'
+function Show-ProbeLines {
+    param($Phase)
+    foreach ($line in $Phase.Lines) {
+        $text = ($line -replace '^.*\[cme-e2e\]\s*', '').Trim()
+        if ($text -match '^FAIL') { Write-Host "  [FAIL] $text" -ForegroundColor Red }
+        elseif ($text -match '^PASS') { Write-Host "  [ OK ] $text" -ForegroundColor Green }
+        else { Write-Host "         $text" -ForegroundColor DarkGray }
+    }
+}
 
-$dbgLog = Join-Path $dataDir 'debug.log'
-$dbgText = if (Test-Path -LiteralPath $dbgLog) { Get-Content -LiteralPath $dbgLog -Raw } else { '' }
-$lines = ($dbgText -split "`r?`n") | Where-Object { $_ -match '\[cme-e2e\]' }
-$fails = @($lines | Where-Object { $_ -match 'FAIL' })
-$passes = @($lines | Where-Object { $_ -match 'PASS' })
+$capture = Invoke-Phase -Scenario 'menu' -Phase 'default'
+$captureFails = @($capture.Lines | Where-Object { $_ -match 'FAIL' })
+$capturePasses = @($capture.Lines | Where-Object { $_ -match 'PASS' })
 
 Write-Host ''
-Write-Host '---- 探针结果 (menu 场景) ----' -ForegroundColor DarkGray
-foreach ($line in $lines) {
-    $text = ($line -replace '^.*\[cme-e2e\]\s*', '').Trim()
-    if ($text -match '^FAIL') { Write-Host "  [FAIL] $text" -ForegroundColor Red }
-    elseif ($text -match '^PASS') { Write-Host "  [ OK ] $text" -ForegroundColor Green }
-    else { Write-Host "         $text" -ForegroundColor DarkGray }
-}
+Write-Host '---- 探针结果 (menu/default: 采集 + 规则重建) ----' -ForegroundColor DarkGray
+Show-ProbeLines $capture
+
+$rules = Invoke-Phase -Scenario 'menu' -Phase 'rules'
+$rulesFailLines = @($rules.Lines | Where-Object { $_ -match 'FAIL' })
+
+Write-Host ''
+Write-Host '---- 探针结果 (menu/rules: 规则作用在真实原生菜单) ----' -ForegroundColor DarkGray
+Show-ProbeLines $rules
 
 $checks = @(
-    [pscustomobject]@{ Name = '探针跑完 (DONE)'; Pass = (@($lines | Where-Object { $_ -match 'DONE' }).Count -gt 0) }
-    [pscustomobject]@{ Name = '插件暴露了 e2e 入口'; Pass = (@($lines | Where-Object { $_ -match 'PASS hook' }).Count -gt 0) }
-    [pscustomobject]@{ Name = '探针断言全部通过'; Pass = ($fails.Count -eq 0 -and $passes.Count -ge 9) }
-    [pscustomobject]@{ Name = '真实菜单被原样保留'; Pass = (@($lines | Where-Object { $_ -match 'PASS 规则未启用时菜单原样保留' }).Count -gt 0) }
-    [pscustomobject]@{ Name = '重建后的项保留原生身份'; Pass = (@($lines | Where-Object { $_ -match 'PASS 子项保留' }).Count -ge 3) }
-    [pscustomobject]@{ Name = '重建后的项仍能触发原动作'; Pass = (@($lines | Where-Object { $_ -match 'PASS 重建后的项仍触发原动作' }).Count -gt 0) }
-    [pscustomobject]@{ Name = '插件在真实运行时里没有报错'; Pass = ($dbgText -notmatch 'Unknown property|Unknown component|Invalid hook call|Error in JS menu callback|Error in menu listener') }
+    [pscustomobject]@{ Name = '探针跑完 (DONE)'; Pass = (@($capture.Lines | Where-Object { $_ -match 'DONE' }).Count -gt 0) }
+    [pscustomobject]@{ Name = '插件暴露了 e2e 入口'; Pass = (@($capture.Lines | Where-Object { $_ -match 'PASS hook' }).Count -gt 0) }
+    [pscustomobject]@{ Name = '采集与规则重建全部通过'; Pass = ($captureFails.Count -eq 0 -and $capturePasses.Count -ge 9) }
+    [pscustomobject]@{ Name = '真实菜单被原样保留'; Pass = (@($capture.Lines | Where-Object { $_ -match 'PASS 规则未启用时菜单原样保留' }).Count -gt 0) }
+    [pscustomobject]@{ Name = '重建后的项保留原生身份'; Pass = (@($capture.Lines | Where-Object { $_ -match 'PASS 子项保留' }).Count -ge 3) }
+    [pscustomobject]@{ Name = '重建后的项仍能触发原动作'; Pass = (@($capture.Lines | Where-Object { $_ -match 'PASS 重建后的项仍触发原动作' }).Count -gt 0) }
+    [pscustomobject]@{ Name = '规则能重塑真实原生菜单'; Pass = (@($rules.Lines | Where-Object { $_ -match 'PASS 真实原生菜单被重排' }).Count -gt 0 -and $rulesFailLines.Count -eq 0) }
+    [pscustomobject]@{ Name = '插件在真实运行时里没有报错'; Pass = ($capture.Text + $rules.Text -notmatch 'Unknown property|Unknown component|Invalid hook call|Error in JS menu callback|Error in menu listener') }
 )
 
-$bmp = Join-Path $outDir 'js-window.bmp'
-$png = $null
 if (-not $SkipWindow) {
     Remove-Item -LiteralPath $bmp -ErrorAction SilentlyContinue
-    $windowExit = Invoke-Scenario -Scenario 'js-interact' -Title $WindowTitle
-    $dbgText = if (Test-Path -LiteralPath $dbgLog) { Get-Content -LiteralPath $dbgLog -Raw } else { '' }
-    $checks += [pscustomobject]@{ Name = '编辑器窗口被打开'; Pass = ($dbgText -match 'PASS window-opened') }
+    $window = Invoke-Phase -Scenario 'js-interact' -Phase 'window' -Title $WindowTitle
+    $checks += [pscustomobject]@{ Name = '编辑器窗口被打开'; Pass = (@($window.Lines | Where-Object { $_ -match 'PASS window-opened' }).Count -gt 0) }
     $checks += [pscustomobject]@{ Name = '窗口截图已生成'; Pass = (Test-Path -LiteralPath $bmp) }
-    if ($windowExit -ne 0 -and -not (Test-Path -LiteralPath $bmp)) {
-        Write-Host "js-interact 场景退出码 $windowExit" -ForegroundColor DarkYellow
-    }
 }
 
 Write-Host ''
@@ -138,8 +155,8 @@ if (Test-Path -LiteralPath $bmp) {
 
 $failed = @($checks | Where-Object { -not $_.Pass })
 Write-Host ''
-if ($failed.Count -gt 0 -or $menuExit -ne 0) {
-    Write-Host "e2e 失败 (断言 $($failed.Count) 项失败, run.ps1 退出码 $menuExit)" -ForegroundColor Red
+if ($failed.Count -gt 0 -or $capture.Exit -ne 0) {
+    Write-Host "e2e 失败 (断言 $($failed.Count) 项失败, menu/default 退出码 $($capture.Exit))" -ForegroundColor Red
     exit 1
 }
 Write-Host 'e2e 通过' -ForegroundColor Green

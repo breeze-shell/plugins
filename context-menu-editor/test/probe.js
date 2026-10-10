@@ -1,6 +1,6 @@
 // 沙箱 e2e 探针: 在真实 shell.dll / 真实 QuickJS 里驱动「右键菜单编辑器」。
 // 由 test/sandbox-e2e.ps1 拷进沙箱的 scripts 目录; 插件只有在
-// config/context-menu-editor/.e2e 存在时才暴露 globalThis.__ctx_menu_editor。
+// config/右键菜单编辑器/.e2e 存在时才暴露 globalThis.__ctx_menu_editor。
 //
 // 两段用法 (由 BREEZE_E2E_SCENARIO 决定):
 //   menu        - 真实 TrackPopupMenuEx 弹出后: 校验采集、校验规则重建
@@ -100,6 +100,63 @@ const demoProfile = hook => {
             children: [{ ...second, id: "i-demo-2" }]
         }
     ]);
+};
+
+const applyRulesOnRealMenu = (hook, ctx, realNodes) => {
+    const pick = name => realNodes.find(node => node.ref && node.ref.name === name);
+    const first = pick("e2e-item-1");
+    const second = pick("e2e-item-2");
+    const submenu = pick("e2e-lazy-submenu");
+    if (!first || !second || !submenu) {
+        report("FAIL 真实菜单应用规则", "采集数据里找不到基础项");
+        return;
+    }
+
+    hook.setSettings({
+        ...hook.settings(),
+        showMenuEntry: false,
+        profiles: {
+            ...hook.settings().profiles,
+            other: profileWith(
+                hook,
+                [
+                    { ...second, hidden: true },
+                    {
+                        kind: "group",
+                        id: "rg",
+                        layout: "fold",
+                        label: "真实分组",
+                        icon: { source: "original" },
+                        hidden: false,
+                        children: [{ ...first, id: "ri", label: "改名的一号" }]
+                    },
+                    submenu
+                ],
+                "hide"
+            )
+        }
+    });
+
+    hook.onMenu({ menu: ctx.menu, context: ctx.context, screenside_button: ctx.screenside_button });
+
+    check("真实原生菜单被重排", ["真实分组", "e2e-lazy-submenu"], names(ctx.menu));
+
+    const inner = shell.menu_controller.create_detached();
+    ctx.menu.items[0].data().submenu(inner);
+    const child = inner.items[0].data();
+    check("真实分组里是改过名的原生项", ["改名的一号"], inner.items.map(item => item.data().name));
+    check("原生位图图标被保留", true, typeof child.icon_bitmap === "number");
+    check("原生命令 id 被保留", true, typeof child.wID === "number");
+};
+
+const runRulesPhase = hook => {
+    let handled = false;
+    shell.menu_controller.add_menu_listener(ctx => {
+        if (handled) return;
+        handled = true;
+        step("在真实原生菜单上应用规则", () => applyRulesOnRealMenu(hook, ctx, hook.nodesFromSnapshot(hook.settings().snapshots.other)));
+        report("DONE", "1");
+    });
 };
 
 const runMenuPhase = hook => {
@@ -234,8 +291,10 @@ const run = tries => {
 
     report("PASS hook", "present");
     const scenario = shell.win32.env("BREEZE_E2E_SCENARIO") || "menu";
-    report("PASS scenario", scenario);
-    if (scenario === "menu") runMenuPhase(hook);
+    const phase = shell.win32.env("CME_E2E_PHASE") || "default";
+    report("PASS scenario", `${scenario}/${phase}`);
+    if (scenario === "menu" && phase === "rules") runRulesPhase(hook);
+    else if (scenario === "menu") runMenuPhase(hook);
     else runWindowPhase();
 };
 

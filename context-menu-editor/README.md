@@ -5,6 +5,8 @@ breeze-shell 的可视化右键菜单编辑器：把真实弹出的右键菜单�
 
 TypeScript + React（breeze 的内置渲染器）+ Fluent Design，构建产物是单文件插件 `plugins/context-menu-editor.js`。
 
+![编辑器窗口](docs/window-preview.png)
+
 ## 功能
 
 | 能力 | 说明 |
@@ -104,6 +106,17 @@ npm run e2e            # 真实 shell.dll + 真实 TrackPopupMenuEx
 e2e 需要先在 devenv 根目录跑过一次 `.\e2e\run.ps1`（它会编译宿主进程），并且被测 shell 是
 `.work\ctx-menu-editor\breeze-shell` 那套构建产物（见根目录 `README.md` 的 worktree 流程）。
 
+`test/sandbox-e2e.ps1` 一共跑三段，每段都把插件与探针拷进沙箱 home，再启动真实的
+`explorer.exe` 宿主进程（真实 `TrackPopupMenuEx`）：
+
+| 段 | 场景 | 验证内容 |
+| --- | --- | --- |
+| 1 | `menu` | 采集真实原生菜单；规则未启用时菜单原样不动；用合成菜单验证规则重建（顺序/改名/图标/横排/隐藏），以及重建后的项仍保留 `wID`/资源 ID/原始文本/快捷键/位图图标并能触发原动作 |
+| 2 | `menu` | 把规则作用在**真实原生菜单**上，断言重排、收纳进分组、图标与命令 id 保留 |
+| 3 | `js-interact` | 打开编辑器窗口，宿主截图到 `docs/window-preview.png` |
+
+第 2 段会改掉宿主那份菜单，破坏 harness 自己针对该场景的断言，所以单独跑一段，只看探针结果。
+
 ## 用这套插件检验插件系统 / GUI 系统时发现的问题
 
 写这个插件的过程本身就是为了体检，下面是实际撞到并处理过的问题：
@@ -115,7 +128,13 @@ e2e 需要先在 devenv 根目录跑过一次 `.\e2e\run.ps1`（它会编译宿�
 2. `to_menu_item()` 不写回 `wID` / `name_resid` / `origin_name`：插件新建或重建的项会变成
    「身份不明」，排在它后面的插件（例如 `contextmenu-cleaner` 按 `origin_name` 匹配）就认不出它了。
    已改为传入即写回，重建后的项保留完整身份。
-3. `cursor` 属性只在 C++ 侧暴露、React 渲染器里没有映射（现在已由 294e032 补上，本插件直接用了）。
+3. `menu_item_controller` 看不到水平菜单母项里的子项（`menu_controller.items` 只返回普通项的包装），
+   插件读不到自己刚建出来的横排组。已补 `menu_item_controller.children()`。
+4. React 渲染器把值为 `undefined` 的属性直接打给原生 setter：`backgroundColor={hover ? a : undefined}`
+   这种很常见的 JSX 写法会让颜色 setter 拿到 `undefined` 并抛
+   `cannot read property 'startsWith' of undefined`，整个窗口渲染不出来。已改为跳过 `undefined`
+   （`createInstance` / `commitUpdate` / 颜色 setter 三处）。
+5. `cursor` 属性只在 C++ 侧暴露、React 渲染器里没有映射（现在已由 294e032 补上，本插件直接用了）。
 
 **还在的缺口（建议后续补）**
 

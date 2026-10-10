@@ -6,7 +6,7 @@ import { MenuKind, Settings } from './types';
 import { Icons } from './theme';
 import { closeEditorWindow, isEditorOpen, openEditorWindow } from './window';
 
-const helper = plugin({ name: 'context-menu-editor', url: import.meta.url }, defaultSettings());
+const helper = plugin({ name: '右键菜单编辑器', url: import.meta.url }, defaultSettings());
 const CONFIG_FILE = helper.config_directory + 'config.json';
 const E2E_MARKER = helper.config_directory + '.e2e';
 
