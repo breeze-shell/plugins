@@ -15,6 +15,8 @@ export type Field = {
     hint?: string;
     placeholder?: string;
     width?: number;
+    grow?: boolean;
+    group?: string;
     min?: number;
     max?: number;
     step?: number;
@@ -107,6 +109,7 @@ const numbering: Preset = {
             kind: 'select',
             key: 'mode',
             label: t('命名方式', 'Pattern'),
+            group: '编号方式',
             options: [
                 { value: 'replace', label: t('只保留序号', 'Number only') },
                 { value: 'before', label: t('序号 + 原名称', 'Number then name') },
@@ -117,7 +120,7 @@ const numbering: Preset = {
         { kind: 'number', key: 'step', label: t('步长', 'Step'), min: 1, max: 1000, step: 1 },
         { kind: 'number', key: 'pad', label: t('补零位数', 'Digits'), min: 0, max: 12, step: 1, hint: t('0 表示不补零', '0 means no padding') },
         { kind: 'select', key: 'format', label: t('序号格式', 'Format'), options: SEQ_FORMATS },
-        { kind: 'text', key: 'prefix', label: t('前缀', 'Prefix'), placeholder: 'IMG' },
+        { kind: 'text', key: 'prefix', label: t('前缀', 'Prefix'), group: '组合方式', placeholder: 'IMG' },
         { kind: 'text', key: 'suffix', label: t('后缀', 'Suffix'), placeholder: '' },
         {
             kind: 'text',
@@ -329,9 +332,10 @@ const cleanup: Preset = {
     extMode: 'respect',
     defaults: { trim: true, collapse: true, unicode: false, illegal: 'remove', spaces: 'keep', dedupe: true },
     fields: [
-        { kind: 'toggle', key: 'trim', label: t('去掉首尾空格', 'Trim leading and trailing spaces') },
+        { kind: 'toggle', key: 'trim', label: t('去掉首尾空格', 'Trim leading and trailing spaces'), group: '空白与重复' },
         { kind: 'toggle', key: 'collapse', label: t('连续空格合并为一个', 'Collapse repeated spaces') },
-        { kind: 'toggle', key: 'unicode', label: t('全角转半角 (ＮＦＣ)', 'Convert full-width to half-width') },
+        { kind: 'toggle', key: 'dedupe', label: t('合并重复的 - _ 与空格', 'Collapse repeated - _ and spaces') },
+        { kind: 'toggle', key: 'unicode', label: t('全角转半角 (ＮＦＣ)', 'Convert full-width to half-width'), group: '字符处理' },
         {
             kind: 'select',
             key: 'illegal',
@@ -352,8 +356,7 @@ const cleanup: Preset = {
                 { value: 'hyphen', label: t('替换为连字符', 'Use hyphen') },
                 { value: 'remove', label: t('删除', 'Remove') }
             ]
-        },
-        { kind: 'toggle', key: 'dedupe', label: t('合并重复的 - _ 与空格', 'Collapse repeated - _ and spaces') }
+        }
     ],
     transform: ({ base, ext }, params) => {
         let next = base;
@@ -451,6 +454,7 @@ const dateTime: Preset = {
             kind: 'select',
             key: 'source',
             label: t('时间来源', 'Time source'),
+            group: '时间来源',
             width: 220,
             options: [
                 { value: 'now', label: t('重命名时的当前时间', 'Current time') },
@@ -458,8 +462,6 @@ const dateTime: Preset = {
                 { value: 'fixed', label: t('指定起始时间并递增', 'Fixed start time, increasing') }
             ]
         },
-        { kind: 'chips', key: 'pattern', label: t('常用格式', 'Presets'), options: DATE_PATTERN_CHIPS },
-        { kind: 'text', key: 'pattern', label: t('时间格式', 'Format'), width: 220, mono: true, hint: t('可用 YYYY MM DD HH mm ss', 'Tokens: YYYY MM DD HH mm ss') },
         {
             kind: 'text',
             key: 'base',
@@ -489,10 +491,13 @@ const dateTime: Preset = {
                 { value: 'day', label: t('天', 'Days') }
             ]
         },
+        { kind: 'chips', key: 'pattern', label: t('常用格式', 'Presets'), group: '时间格式', options: DATE_PATTERN_CHIPS },
+        { kind: 'text', key: 'pattern', label: t('时间格式', 'Format'), width: 220, mono: true, hint: t('可用 YYYY MM DD HH mm ss', 'Tokens: YYYY MM DD HH mm ss') },
         {
             kind: 'select',
             key: 'position',
             label: t('放置位置', 'Position'),
+            group: '放置方式',
             options: [
                 { value: 'prefix', label: t('名称前', 'Before name') },
                 { value: 'suffix', label: t('名称后', 'After name') },
@@ -557,6 +562,7 @@ const script: Preset = {
             kind: 'chips',
             key: 'code',
             label: t('插入示例', 'Insert example'),
+            group: '脚本',
             options: SCRIPT_EXAMPLES.map(example => ({ value: example.code, label: example.label })),
             onPick: (params, code) => ({ ...params, code })
         },
@@ -572,6 +578,7 @@ const script: Preset = {
             kind: 'select',
             key: 'onError',
             label: t('脚本报错时', 'On script error'),
+            group: '出错时',
             options: [
                 { value: 'skip', label: t('跳过该项', 'Skip this item') },
                 { value: 'block', label: t('阻止应用', 'Block applying') }

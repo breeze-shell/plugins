@@ -12,7 +12,8 @@ const SEED = [
     "holiday photo 2.JPG",
     "holiday photo 10.JPG",
     "note.txt",
-    "report (draft).txt"
+    "report (draft).txt",
+    "a really long file name that will not fit in the preview column.png"
 ];
 
 const basenames = () =>
@@ -66,7 +67,7 @@ const main = (hook) => {
 
     step("quickApply", () => {
         hook.quickApply(items, "numbering");
-        check("numbering", ["001.JPG", "002.JPG", "003.JPG", "004.txt", "005.txt"], basenames());
+        check("numbering", ["001.png", "002.JPG", "003.JPG", "004.JPG", "005.txt", "006.txt"], basenames());
     });
 
     step("undo", () => {
@@ -107,23 +108,23 @@ const main = (hook) => {
 
         const top = rootEntries[0];
         check("菜单插到原生重命名后面", top.after, 0);
-        check("菜单标题带数量", top.name, "重命名 Plus（5 项）");
+        check("菜单标题带数量", top.name, "重命名 Plus（6 项）");
 
         const subEntries = [];
         top.submenu(fakeMenu(subEntries));
         check(
             "一级子菜单",
             subEntries.map(entry => entry.name).join(" | "),
-            "批量重命名…（5 项） | ----- | 常用预设 | ----- | 撤销上次重命名"
+            "批量重命名…（6 项） | ----- | 常用预设 | ----- | 撤销上次重命名"
         );
 
         const presetEntries = [];
         subEntries[2].submenu(fakeMenu(presetEntries));
         check("预设入口数量", presetEntries.length, 10);
-        check("序号入口带预览", presetEntries[0].name, "序号重命名  → 001.JPG");
+        check("序号入口带预览", presetEntries[0].name, "序号重命名  → 001.png");
 
         presetEntries[0].action();
-        check("从菜单直接应用序号", basenames().join(","), "001.JPG,002.JPG,003.JPG,004.txt,005.txt");
+        check("从菜单直接应用序号", basenames().join(","), "001.png,002.JPG,003.JPG,004.JPG,005.txt,006.txt");
         hook.undoLast();
         check("菜单改名后可撤销", basenames().join(","), SEED.slice().sort().join(","));
     });

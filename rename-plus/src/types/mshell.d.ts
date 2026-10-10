@@ -16,6 +16,11 @@ declare module 'mshell' {
             y: number;
             width: number;
             height: number;
+            flex_grow: number;
+            flex_shrink: number;
+            min_width: number;
+            min_height: number;
+            align_self: string;
             children(): js_widget[];
             append_child(child: js_widget): void;
             prepend_child(child: js_widget): void;
@@ -31,6 +36,8 @@ declare module 'mshell' {
             font_size: number;
             font_weight: number;
             max_width: number;
+            line_height_multiplier: number;
+            text_overflow: string;
             font_family: string;
             color: [number, number, number, number] | undefined;
         }
@@ -78,16 +85,19 @@ declare module 'mshell' {
         export class js_flex_layout_widget extends js_widget {
             auto_size: boolean;
             horizontal: boolean;
+            reverse: boolean;
             padding_left: number;
             padding_right: number;
             padding_top: number;
             padding_bottom: number;
-            flex_grow: number;
-            flex_shrink: number;
             max_height: number;
             enable_scrolling: boolean;
             enable_child_clipping: boolean;
             crop_overflow: boolean;
+            scroll_bar_color: [number, number, number, number] | undefined;
+            scroll_bar_width: number;
+            scroll_bar_radius: number;
+            scroll_bar_margin: number;
             padding: [number, number, number, number];
             on_click: (key: number) => void;
             on_mouse_move: (x: number, y: number) => void;
@@ -97,6 +107,7 @@ declare module 'mshell' {
             on_mouse_up: () => void;
             justify_content: string;
             align_items: string;
+            flex_wrap: string;
             background_color: [number, number, number, number] | undefined;
             border_color: [number, number, number, number] | undefined;
             border_radius: number;

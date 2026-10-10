@@ -6,7 +6,7 @@ TypeScript + React 写成，界面用 Fluent Design 的那套色板/控件（跟
 
 ![序号重命名](docs/window-numbering.png)
 
-左边挑预设、中间填参数、右边逐项预览改动，底部是「应用」和冲突提示。
+窗口分三栏：左边挑预设，中间按「编号方式 / 组合方式」这种小节分组调参数，右边逐项列出「原名 → 新名字」并高亮改动的那几个字。顶部工具栏放全局开关（保留扩展名、重命名顺序、恢复默认参数），底部状态条给冲突提示和「应用」。
 
 | JS 脚本 | 单选（手动改名） | 日期时间 |
 | --- | --- | --- |
@@ -48,7 +48,7 @@ npm test             # 纯逻辑测试（node + mshell 替身，95 条断言）
 npm run e2e          # 沙箱 e2e（真实 shell.dll + 真实 QuickJS + 窗口截图）
 ```
 
-`npm run e2e` 需要先在仓库根目录跑过一次 `.\e2e\run.ps1`（它会编译那个 explorer.exe 宿主进程）。e2e 会在 `.work\_default\home` 这个沙箱里装好插件，让探针在**真实的 QuickJS 运行时**里建测试文件、跑预设、撤销、打开窗口，最后给窗口截图（`out/js-window.png`）。
+`npm run e2e` 需要先在仓库根目录跑过一次 `.\e2e\run.ps1`（它会编译那个 explorer.exe 宿主进程）。e2e 会在 `.work\_default\home` 这个沙箱里装好插件，让探针在**真实的 QuickJS 运行时**里建测试文件、跑预设、撤销、打开窗口，最后给窗口截图（`out/js-window.png`）。shell.dll 来自某个 worktree 时，加 `-Worktree <名字>` 就会用那套构建（沙箱目录也跟着变成 `.work\<名字>`）。
 
 ## 8 个预设
 
@@ -99,6 +99,8 @@ return date("YYYY-MM-DD") + "_" + name;
 - **不用 breeze 的 toast 接口**：`notification.*` 在插件的脚本线程上调用会让宿主进程堆损坏（沙箱 e2e 里稳定复现 `0xC0000374`），所以结果只写日志，反馈交给菜单里的「撤销上次重命名」和窗口里的状态条。
 - **文件修改时间**：breeze 没有暴露文件时间接口，选「文件修改时间」时才会用一次 `powershell -EncodedCommand`（带 `-WindowStyle Hidden`）批量取时间，其余情况完全不用外部进程。
 - **冲突检查**：`std::filesystem::rename` 在 Windows 上会覆盖同名目标，所以每次改名之前都会再确认目标没被占用；批量内部互相占位（比如 a↔b 互换）时先全部改成临时名再落地，中途出错会把已改的还原回去。
+- **数值属性传 `undefined` 会让宿主卡死**：`lineHeight={undefined}` 这类写法会把 0 以外的垃圾值写进 widget（NaN），文本测量一返回 NaN，Yoga 每帧都打一条错误日志，日志把宿主的标准输出管道写满之后整个界面就停在那里了。现在两边都堵上了：插件的 `Text` 只在真有值时才传这个属性，bindgen 生成的数值 setter 也会挡掉 NaN/∞。
+- **固定列宽的面板要显式写宽度**：文本的 `maxWidth` 会算进父容器的 max-content，参数栏里一行长文本就足以把右边预览栏挤出去。现在三栏都按窗口宽度算好固定宽度，长文本自己换行（`minWidth={0}` + `flexWrap="wrap"`）。
 - **类型声明**：`src/types/` 里自带一份 mshell 子集声明（官方 npm 包 `breeze-shell-types` 目前落后于运行时，缺 `js_textbox_widget` 等）。
 - **React 实例**：必须复用 breeze 内置脚本挂在 `globalThis` 上的那一份 React（`src/react.ts`），自己打包一份会触发 `Invalid hook call`。
 

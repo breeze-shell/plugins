@@ -10,6 +10,7 @@ param(
     [string] $Root,
     [string] $WindowTitle = '重命名 Plus',
     [string] $Preset = 'numbering',
+    [string] $Worktree,
     [switch] $Single,
     [switch] $RebuildHost
 )
@@ -34,7 +35,7 @@ if (-not (Test-Path -LiteralPath $bundle)) {
 if (-not (Test-Path -LiteralPath $bundle)) { throw "找不到构建产物: $bundle" }
 Write-Host "插件产物: $bundle ($([math]::Round((Get-Item $bundle).Length / 1KB, 1)) kB)" -ForegroundColor DarkGray
 
-$caseDir = Join-Path $Root '.work\_default'
+$caseDir = Join-Path $Root ".work\$(if ($Worktree) { $Worktree } else { '_default' })"
 $homeDir = Join-Path $caseDir 'home'
 $dataDir = Join-Path $homeDir '.breeze-shell'
 $scriptsDir = Join-Path $dataDir 'scripts'
@@ -60,6 +61,7 @@ $runArgs = @(
     '-Scenario', 'js-interact', '-WindowTitle', $WindowTitle
 )
 if ($RebuildHost) { $runArgs += '-RebuildHost' }
+if ($Worktree) { $runArgs += @('-Worktree', $Worktree) }
 
 # run.ps1 里有 exit, 必须在子进程里跑, 否则会一起结束当前会话。
 $child = if (Get-Command pwsh -ErrorAction SilentlyContinue) { 'pwsh' } else { 'powershell.exe' }

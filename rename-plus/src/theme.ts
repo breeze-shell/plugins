@@ -36,6 +36,11 @@ export const Icons = {
 
 export type Tone = 'accent' | 'info' | 'success' | 'warning' | 'danger' | 'neutral';
 
+export const Space = { xs: 4, sm: 6, md: 8, lg: 12, xl: 16, xxl: 20 } as const;
+export const Radius = { sm: 4, md: 6, lg: 8, xl: 12 } as const;
+export const Font = { title: 20, heading: 15, body: 13, small: 12, tiny: 11 } as const;
+export const Control = { height: 32, heightSm: 26, label: 96 } as const;
+
 export const fluent = () => {
     const light = shell.breeze.is_light_theme();
     return {
@@ -65,6 +70,9 @@ export const fluent = () => {
         subtlePressed: light ? '#00000006' : '#FFFFFF0A',
         divider: light ? '#00000014' : '#FFFFFF15',
         codeBg: light ? '#0000000A' : '#00000040',
+        scrollBar: light ? '#00000038' : '#FFFFFF33',
+        windowBg: light ? '#F3F3F3FF' : '#202020FF',
+        columnBg: light ? '#FFFFFF66' : '#FFFFFF08',
         scrollTrack: light ? '#00000008' : '#FFFFFF0A',
         transparent: '#00000000'
     };

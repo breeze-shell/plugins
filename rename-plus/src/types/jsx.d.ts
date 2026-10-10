@@ -9,10 +9,19 @@ type AnimationCurve = {
     vars: string[];
 };
 
+// 任何 widget 都能参与 flex 布局, 这几项对 flex/text/textbox/img 都有效。
+type FlexItemProps = {
+    flexGrow?: number;
+    flexShrink?: number;
+    minWidth?: number;
+    minHeight?: number;
+    alignSelf?: 'auto' | 'start' | 'center' | 'end' | 'stretch' | 'baseline';
+};
+
 declare module 'react' {
     namespace JSX {
         interface IntrinsicElements {
-            flex: {
+            flex: FlexItemProps & {
                 padding?: number;
                 paddingTop?: number;
                 paddingRight?: number;
@@ -42,16 +51,20 @@ declare module 'react' {
                 height?: number;
                 autoSize?: boolean;
                 gap?: number;
-                flexGrow?: number;
-                flexShrink?: number;
                 maxHeight?: number;
                 enableScrolling?: boolean;
                 enableChildClipping?: boolean;
                 cropOverflow?: boolean;
                 opacity?: number;
                 animationCurve?: AnimationCurve;
+                flexWrap?: 'nowrap' | 'wrap' | 'wrap-reverse';
+                reverse?: boolean;
+                scrollBarColor?: string;
+                scrollBarWidth?: number;
+                scrollBarRadius?: number;
+                scrollBarMargin?: number;
             };
-            text: {
+            text: FlexItemProps & {
                 text?: string[] | string;
                 fontSize?: number;
                 fontWeight?: number;
@@ -62,13 +75,14 @@ declare module 'react' {
                 y?: number;
                 width?: number;
                 height?: number;
-                flexGrow?: number;
-                flexShrink?: number;
+                // 换行宽度上限: 设了它再配 textOverflow='ellipsis' 就是单行省略。
                 maxWidth?: number;
                 fontFamily?: 'main' | 'monospace' | 'fallback';
                 animationCurve?: AnimationCurve;
+                lineHeight?: number;
+                textOverflow?: 'wrap' | 'clip' | 'ellipsis';
             };
-            textbox: {
+            textbox: FlexItemProps & {
                 text?: string;
                 value?: string;
                 placeholder?: string;
@@ -104,10 +118,8 @@ declare module 'react' {
                 y?: number;
                 width?: number;
                 height?: number;
-                flexGrow?: number;
-                flexShrink?: number;
             };
-            img: {
+            img: FlexItemProps & {
                 svg?: string;
                 key?: string | number;
                 animatedVars?: string[];
@@ -115,8 +127,6 @@ declare module 'react' {
                 y?: number;
                 width?: number;
                 height?: number;
-                flexGrow?: number;
-                flexShrink?: number;
             };
             spacer: {
                 size?: number;
