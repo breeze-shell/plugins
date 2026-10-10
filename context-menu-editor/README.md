@@ -118,6 +118,17 @@ e2e 需要先在 devenv 根目录跑过一次 `.\e2e\run.ps1`（它会编译宿�
 
 第 2 段会改掉宿主那份菜单，破坏 harness 自己针对该场景的断言，所以单独跑一段，只看探针结果。
 
+`test/interact.ps1` 用**真实鼠标**（`SetPos` + 真实按键，`js-script` 场景）驱动编辑器窗口，逐步截图，用来验证拖拽这类交互：
+
+```powershell
+pwsh -NoProfile -File test\interact.ps1 -Steps "move:334,323;shot:before;down;move:334,295;move:334,262;shot:dragging;move:334,238;up;shot:after"
+```
+
+它就是抓出「拖拽不生效」的：拖拽的落点合并原来用 `Promise.resolve().then()` 做延迟，
+而宿主回调里的微任务不会被排空，`dropRef` 永远拿不到落点，于是 `drop()` 一直空转；
+改成同步记落点 + `setTimeout(0)` 重置后，真实鼠标一拖就生效（把一个灰色原生项拖到第二条，
+它当场变成规则行）。插件里做事件合并时请用 `setTimeout(0)`，不要依赖微任务。
+
 ## 用这套插件检验插件系统 / GUI 系统时发现的问题
 
 写这个插件的过程本身就是为了体检，下面是实际撞到并处理过的问题：
