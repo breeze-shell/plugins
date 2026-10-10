@@ -108,8 +108,14 @@ Write-Host ''
 Write-Host '---- 探针结果 (menu/default: 采集 + 规则重建) ----' -ForegroundColor DarkGray
 Show-ProbeLines $capture
 
+# 规则段会边跑边把配置写回, 先备份, 跑完还原给截图段用
+$configFile = Join-Path $configDir 'config.json'
+$demoConfig = if (Test-Path -LiteralPath $configFile) { Get-Content -LiteralPath $configFile -Raw } else { $null }
+
 $rules = Invoke-Phase -Scenario 'menu' -Phase 'rules'
 $rulesFailLines = @($rules.Lines | Where-Object { $_ -match 'FAIL' })
+
+if ($demoConfig) { [System.IO.File]::WriteAllText($configFile, $demoConfig, [System.Text.UTF8Encoding]::new($false)) }
 
 Write-Host ''
 Write-Host '---- 探针结果 (menu/rules: 规则作用在真实原生菜单) ----' -ForegroundColor DarkGray

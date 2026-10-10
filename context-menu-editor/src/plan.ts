@@ -164,6 +164,95 @@ export const nodeFromSnapshotItem = (item: SnapshotItem): ItemNode => itemNode(r
 export const nodesFromSnapshot = (snapshot: Snapshot): Node[] =>
     snapshot.items.filter(item => !item.separator).map(nodeFromSnapshotItem);
 
+export type CanvasRow = {
+    key: string;
+    node: Node;
+    virtual: boolean;
+    parentId: string | null;
+    index: number;
+    depth: number;
+    hiddenByPolicy: boolean;
+};
+
+const snapshotIndexOf = (snapshot: Snapshot | null, key: string): number => {
+    if (!snapshot) return -1;
+    return snapshot.items.findIndex(item => item.key === key);
+};
+
+// 画布 = 规则树 + 还没被规则覆盖的原生项, 顺序尽量贴近菜单真实顺序
+export const buildCanvas = (profile: Profile, snapshot: Snapshot | null, expanded: string[]): CanvasRow[] => {
+    const managed = new Set<string>();
+    const walkManaged = (nodes: Node[]) => {
+        for (const node of nodes) {
+            if (node.kind === 'group') walkManaged(node.children);
+            else if (node.kind === 'item' && node.ref) managed.add(node.ref.key);
+        }
+    };
+    walkManaged(profile.nodes);
+
+    const rowOf = (node: Node, parentId: string | null, index: number, depth: number): CanvasRow => ({
+        key: node.id,
+        node,
+        virtual: false,
+        parentId,
+        index,
+        depth,
+        hiddenByPolicy: false
+    });
+
+    const virtualRows: CanvasRow[] = (snapshot?.items ?? [])
+        .filter(item => !item.separator && !managed.has(item.key))
+        .map(item => ({
+            key: `virtual:${item.key}`,
+            node: nodeFromSnapshotItem(item),
+            virtual: true,
+            parentId: null,
+            index: -1,
+            depth: 0,
+            hiddenByPolicy: false
+        }));
+
+    const rows: CanvasRow[] = [];
+    const walk = (nodes: Node[], parentId: string | null, depth: number) => {
+        nodes.forEach((node, index) => {
+            rows.push(rowOf(node, parentId, index, depth));
+            if (node.kind === 'group' && expanded.includes(node.id)) walk(node.children, node.id, depth + 1);
+        });
+    };
+
+    if (profile.unmanaged !== 'keep-original') {
+        walk(profile.nodes, null, 0);
+        return rows.concat(virtualRows.map(row => ({ ...row, hiddenByPolicy: profile.unmanaged === 'hide' })));
+    }
+
+    // keep-original: 未纳入的原生项插在它原来的邻居之间
+    const pending = virtualRows.slice();
+    const flushBefore = (anchorIndex: number) => {
+        const take: CanvasRow[] = [];
+        for (let i = 0; i < pending.length; ) {
+            const index = snapshotIndexOf(snapshot, pending[i].key.slice('virtual:'.length));
+            if (index >= 0 && index < anchorIndex) {
+                take.push(pending[i]);
+                pending.splice(i, 1);
+            } else i += 1;
+        }
+        rows.push(...take);
+    };
+
+    const walkOrdered = (nodes: Node[], parentId: string | null, depth: number) => {
+        nodes.forEach((node, index) => {
+            if (depth === 0 && parentId === null && node.kind === 'item' && node.ref) {
+                const anchor = snapshotIndexOf(snapshot, node.ref.key);
+                if (anchor >= 0) flushBefore(anchor);
+            }
+            rows.push(rowOf(node, parentId, index, depth));
+            if (node.kind === 'group' && expanded.includes(node.id)) walkOrdered(node.children, node.id, depth + 1);
+        });
+    };
+    walkOrdered(profile.nodes, null, 0);
+    return rows.concat(pending);
+};
+
 const markConsumed = (node: Node, sources: Map<string, CapturedItem>, used: Set<string>) => {
     if (node.kind === 'group') {
         for (const child of node.children) markConsumed(child, sources, used);

@@ -411,6 +411,7 @@ export const TextField = ({
     flexGrow,
     onFocus,
     onBlur,
+    onKeyDown,
     disabled,
     c
 }: {
@@ -421,6 +422,7 @@ export const TextField = ({
     flexGrow?: number;
     onFocus?: () => void;
     onBlur?: () => void;
+    onKeyDown?: (key: number, shift: boolean, ctrl: boolean, alt: boolean, meta: boolean) => boolean;
     disabled?: boolean;
     c?: FluentTokens;
 }) => {
@@ -448,6 +450,7 @@ export const TextField = ({
             onChange={onChange}
             onFocus={onFocus}
             onBlur={onBlur}
+            {...(onKeyDown ? { onKeyDown } : {})}
         />
     );
 };

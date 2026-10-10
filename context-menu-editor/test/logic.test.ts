@@ -18,13 +18,15 @@ import {
     unwrapGroup,
     wrapInGroup
 } from '../src/model';
-import { applyProfile, captureMenu, classifyMenu, makeSnapshot, matchesProfileContext, nodesFromSnapshot, planMenu, tidyPlan, toRef } from '../src/plan';
+import { applyProfile, buildCanvas, captureMenu, classifyMenu, makeSnapshot, matchesProfileContext, nodesFromSnapshot, planMenu, tidyPlan, toRef } from '../src/plan';
 import { SCHEMA_VERSION, defaultSettings, normalizeSettings } from '../src/settings';
+import { KEY, shortcutFor } from '../src/shortcuts';
 import { MENU_KINDS } from '../src/types';
 import { activated, asMenu, asParent, createFakeMenu, describeMenu, findItem, namesOf, openSubmenu, parentControllers, resetActivated, runAction, sepIndices } from './fakes';
-import type { PlanNode } from '../src/plan';
+import type { CanvasRow, PlanNode } from '../src/plan';
+import type { ShortcutMods, ShortcutState } from '../src/shortcuts';
 import type { FakeEntry, FakeItemSpec } from './fakes';
-import type { GroupNode, ItemNode, ItemRef, MenuContextInfo, Node, Profile, SepNode } from '../src/types';
+import type { GroupNode, ItemNode, ItemRef, MenuContextInfo, Node, Profile, SepNode, Snapshot, SnapshotItem } from '../src/types';
 
 let passed = 0;
 const failures: string[] = [];
@@ -282,6 +284,163 @@ const planTests = () => {
     checkEq('隐藏项在 keep-end 下也不复活', revived, ['打开', '粘贴', '复制']);
 };
 
+/* ------------------------------------------------------------- buildCanvas */
+
+const snapItem = (key: string, over: Partial<SnapshotItem> = {}): SnapshotItem => ({
+    key,
+    name: key,
+    disabled: false,
+    hasSubmenu: false,
+    separator: false,
+    hasIconBitmap: false,
+    ...over
+});
+
+const canvasSnap = (items: (string | SnapshotItem)[]): Snapshot => ({
+    at: 0,
+    kind: 'files',
+    windowTitle: '下载',
+    className: 'CabinetWClass',
+    executable: 'C:\\Windows\\explorer.exe',
+    path: 'C:\\Users\\t\\下载',
+    selection: 0,
+    items: items.map(item => (typeof item === 'string' ? snapItem(item) : item))
+});
+
+const rowShape = (rows: CanvasRow[]): string[] =>
+    rows.map(row => {
+        const name = row.virtual ? `虚拟 ${row.key.slice('virtual:'.length)}` : `规则 ${row.node.id}`;
+        return `${name} 父=${row.parentId ?? '-'} 序=${row.index} 深=${row.depth}${row.hiddenByPolicy ? ' 隐藏' : ''}`;
+    });
+
+const rowKeys = (rows: CanvasRow[]): string[] => rows.map(row => row.key);
+
+const canvasTests = () => {
+    section('buildCanvas');
+
+    const blank = emptyProfile('files');
+    checkEq('无快照时画布为空', buildCanvas(blank, null, []).length, 0);
+
+    const withSep = canvasSnap([snapItem('r:A'), snapItem('分隔档', { separator: true }), snapItem('r:B')]);
+    const virtualOnly = buildCanvas(blank, withSep, []);
+    checkEq('空档案时快照项全成虚拟行', rowShape(virtualOnly), ['虚拟 r:A 父=- 序=-1 深=0', '虚拟 r:B 父=- 序=-1 深=0']);
+    checkEq('虚拟行 key 带前缀', rowKeys(virtualOnly), ['virtual:r:A', 'virtual:r:B']);
+    checkEq('虚拟行内容取自快照项', [virtualOnly[0].virtual, virtualOnly[0].node.kind, virtualOnly[0].node.ref?.key], [true, 'item', 'r:A']);
+    checkEq('hide 下快照分隔符仍不成行', rowKeys(buildCanvas({ ...blank, unmanaged: 'hide' }, withSep, [])), ['virtual:r:A', 'virtual:r:B']);
+
+    const a = pItem('r:A');
+    const b = pItem('r:B');
+    const c = pItem('r:C');
+    const d = pItem('r:D');
+    const inner = pGroup('收纳', [b, c]);
+    const tree = pProfile([a, inner, d], 'keep-end');
+    const rootShape = [`规则 ${a.id} 父=- 序=0 深=0`, `规则 ${inner.id} 父=- 序=1 深=0`, `规则 ${d.id} 父=- 序=2 深=0`];
+
+    checkEq('分组未展开时子项不成行', rowShape(buildCanvas(tree, null, [])), rootShape);
+    checkEq('分组展开后子项带父与深度', rowShape(buildCanvas(tree, null, [inner.id])), [
+        ...rootShape.slice(0, 2),
+        `规则 ${b.id} 父=${inner.id} 序=0 深=1`,
+        `规则 ${c.id} 父=${inner.id} 序=1 深=1`,
+        rootShape[2]
+    ]);
+    check('未知 id 不展开任何分组', deepEqual(rowShape(buildCanvas(tree, null, ['没用'])), rootShape));
+    check('规则行直接引用档案节点', buildCanvas(tree, null, [])[1].node === inner);
+    check('规则行不标记虚拟与策略隐藏', buildCanvas(tree, null, []).every(row => !row.virtual && !row.hiddenByPolicy));
+
+    const four = canvasSnap(['r:A', 'r:B', 'r:C', 'r:D']);
+    checkEq('分组子项不重复成虚拟行', rowKeys(buildCanvas(tree, four, [])), [a.id, inner.id, d.id]);
+    checkEq('全部覆盖时无虚拟行', rowKeys(buildCanvas(tree, four, [inner.id])), [a.id, inner.id, b.id, c.id, d.id]);
+    checkEq('未覆盖项按快照顺序补在末尾', rowKeys(buildCanvas(pProfile([a, b], 'keep-end'), four, [])), [a.id, b.id, 'virtual:r:C', 'virtual:r:D']);
+
+    const gap = canvasSnap(['r:A', 'r:X', 'r:D']);
+    checkEq('keep-original 未覆盖项回到原位', rowShape(buildCanvas(pProfile([a, d], 'keep-original'), gap, [])), [
+        `规则 ${a.id} 父=- 序=0 深=0`,
+        '虚拟 r:X 父=- 序=-1 深=0',
+        `规则 ${d.id} 父=- 序=1 深=0`
+    ]);
+    checkEq('keep-end 未覆盖项排到最末', rowKeys(buildCanvas(pProfile([a, d], 'keep-end'), gap, [])), [a.id, d.id, 'virtual:r:X']);
+    checkEq('keep-original 最前的未覆盖项排到最前', rowKeys(buildCanvas(pProfile([a], 'keep-original'), canvasSnap(['r:X', 'r:A']), [])), ['virtual:r:X', a.id]);
+    checkEq('keep-original 末尾的未覆盖项留在最末', rowKeys(buildCanvas(pProfile([a], 'keep-original'), canvasSnap(['r:A', 'r:X']), [])), [a.id, 'virtual:r:X']);
+    checkEq(
+        'keep-original 连续未覆盖项保持快照顺序',
+        rowKeys(buildCanvas(pProfile([a, d], 'keep-original'), canvasSnap(['r:A', 'r:X', 'r:Y', 'r:D']), [])),
+        [a.id, 'virtual:r:X', 'virtual:r:Y', d.id]
+    );
+    checkEq(
+        'keep-original 每个锚点各刷自己前面的未覆盖项',
+        rowKeys(buildCanvas(pProfile([a, d], 'keep-original'), canvasSnap(['r:X', 'r:A', 'r:Y', 'r:D', 'r:Z']), [])),
+        ['virtual:r:X', a.id, 'virtual:r:Y', d.id, 'virtual:r:Z']
+    );
+
+    checkEq('hide 把未覆盖项标成策略隐藏', rowShape(buildCanvas(pProfile([a], 'hide'), canvasSnap(['r:A', 'r:B']), [])), [
+        `规则 ${a.id} 父=- 序=0 深=0`,
+        '虚拟 r:B 父=- 序=-1 深=0 隐藏'
+    ]);
+    checkEq('keep-end 不标记策略隐藏', buildCanvas(pProfile([a], 'keep-end'), canvasSnap(['r:A', 'r:B']), []).map(row => row.hiddenByPolicy), [false, false]);
+    checkEq('keep-original 不标记策略隐藏', buildCanvas(pProfile([a], 'keep-original'), canvasSnap(['r:A', 'r:B']), []).map(row => row.hiddenByPolicy), [false, false]);
+};
+
+/* ------------------------------------------------------------- shortcutFor */
+
+const noMods: ShortcutMods = { shift: false, ctrl: false, alt: false, super: false };
+const modsOf = (over: Partial<ShortcutMods> = {}): ShortcutMods => ({ ...noMods, ...over });
+const ctrlMod: ShortcutMods = modsOf({ ctrl: true });
+const stateOf = (over: Partial<ShortcutState> = {}): ShortcutState => ({
+    hasSelection: true,
+    editing: false,
+    canUndo: true,
+    canRedo: true,
+    canRemove: true,
+    ...over
+});
+
+const shortcutTests = () => {
+    section('shortcutFor');
+
+    checkEq('键码与 GLFW 一致', [KEY.escape, KEY.enter, KEY.delete, KEY.up, KEY.down, KEY.y, KEY.z, KEY.d], [256, 257, 261, 265, 264, 89, 90, 68]);
+
+    checkEq('ctrl+z 撤销', shortcutFor(KEY.z, ctrlMod, stateOf()), 'undo');
+    checkEq('meta+z 等同 ctrl+z', shortcutFor(KEY.z, modsOf({ super: true }), stateOf()), 'undo');
+    checkEq('ctrl+shift+z 重做', shortcutFor(KEY.z, modsOf({ ctrl: true, shift: true }), stateOf()), 'redo');
+    checkEq('ctrl+y 重做', shortcutFor(KEY.y, ctrlMod, stateOf()), 'redo');
+    checkEq('ctrl+d 复制选中项', shortcutFor(KEY.d, ctrlMod, stateOf()), 'duplicate');
+    checkEq('ctrl+delete 删除', shortcutFor(KEY.delete, ctrlMod, stateOf()), 'remove');
+    checkEq('alt+up 选上一项', shortcutFor(KEY.up, modsOf({ alt: true }), stateOf()), 'selectPrev');
+    checkEq('alt+down 选下一项', shortcutFor(KEY.down, modsOf({ alt: true }), stateOf()), 'selectNext');
+    checkEq('ctrl+up 上移', shortcutFor(KEY.up, ctrlMod, stateOf()), 'moveUp');
+    checkEq('ctrl+down 下移', shortcutFor(KEY.down, ctrlMod, stateOf()), 'moveDown');
+    checkEq('enter 重命名选中项', shortcutFor(KEY.enter, noMods, stateOf()), 'rename');
+    checkEq('escape 取消选中', shortcutFor(KEY.escape, noMods, stateOf()), 'deselect');
+    checkEq('meta 方向键也能上下移动', [shortcutFor(KEY.up, modsOf({ super: true }), stateOf()), shortcutFor(KEY.down, modsOf({ super: true }), stateOf())], ['moveUp', 'moveDown']);
+
+    checkEq('无可撤销时 ctrl+z 无效', shortcutFor(KEY.z, ctrlMod, stateOf({ canUndo: false })), null);
+    checkEq('无可重做时 ctrl+shift+z 无效', shortcutFor(KEY.z, modsOf({ ctrl: true, shift: true }), stateOf({ canRedo: false })), null);
+    checkEq('无可重做时 ctrl+y 无效', shortcutFor(KEY.y, ctrlMod, stateOf({ canRedo: false })), null);
+    checkEq('无选中时 ctrl+d 无效', shortcutFor(KEY.d, ctrlMod, stateOf({ hasSelection: false })), null);
+    checkEq('不可删时 ctrl+delete 无效', shortcutFor(KEY.delete, ctrlMod, stateOf({ canRemove: false })), null);
+    checkEq('不可删时 ctrl+up 无效', shortcutFor(KEY.up, ctrlMod, stateOf({ canRemove: false })), null);
+    checkEq('不可删时 ctrl+down 无效', shortcutFor(KEY.down, ctrlMod, stateOf({ canRemove: false })), null);
+    checkEq('无选中时 enter 无效', shortcutFor(KEY.enter, noMods, stateOf({ hasSelection: false })), null);
+    checkEq('无选中时 escape 无效', shortcutFor(KEY.escape, noMods, stateOf({ hasSelection: false })), null);
+    checkEq('无选中时 alt+up 仍可切换选中', shortcutFor(KEY.up, modsOf({ alt: true }), stateOf({ hasSelection: false })), 'selectPrev');
+
+    checkEq(
+        '无修饰键的 delete 与方向键不响应',
+        [shortcutFor(KEY.delete, noMods, stateOf()), shortcutFor(KEY.up, noMods, stateOf()), shortcutFor(KEY.down, noMods, stateOf())],
+        [null, null, null]
+    );
+    checkEq('裸字母键不响应', [KEY.z, KEY.y, KEY.d].map(key => shortcutFor(key, noMods, stateOf())), [null, null, null]);
+    checkEq('无关按键不响应', shortcutFor(65, ctrlMod, stateOf()), null);
+
+    checkEq(
+        '编辑中只认 escape',
+        [KEY.escape, KEY.enter, KEY.delete, KEY.z].map(key => shortcutFor(key, ctrlMod, stateOf({ editing: true }))),
+        ['deselect', null, null, null]
+    );
+    checkEq('编辑中无选中也能退出', shortcutFor(KEY.escape, noMods, stateOf({ editing: true, hasSelection: false })), 'deselect');
+    checkEq('编辑中 alt+up 不响应', shortcutFor(KEY.up, modsOf({ alt: true }), stateOf({ editing: true })), null);
+};
+
 /* ------------------------------------------------------------- applyProfile */
 
 const NATIVE: FakeItemSpec[] = [
@@ -459,6 +618,8 @@ modelTests();
 contextTests();
 captureTests();
 planTests();
+canvasTests();
+shortcutTests();
 applyTests();
 losslessTests();
 settingsTests();

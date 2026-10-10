@@ -30,6 +30,7 @@ declare module 'react' {
                 onMouseDown?: () => void;
                 onMouseUp?: () => void;
                 onMouseMove?: (x: number, y: number) => void;
+                onKeyDown?: (key: number, shiftKey: boolean, ctrlKey: boolean, altKey: boolean, metaKey: boolean) => void;
                 justifyContent?: 'start' | 'center' | 'end' | 'space-between' | 'space-around' | 'space-evenly' | 'free';
                 alignItems?: 'start' | 'center' | 'end' | 'stretch' | 'free';
                 horizontal?: boolean;

@@ -36,7 +36,7 @@ export const emptyProfile = (kind: MenuKind): Profile => ({
     kind,
     enabled: false,
     nodes: [],
-    unmanaged: 'keep-end',
+    unmanaged: 'keep-original',
     processFilter: '',
     titleFilter: '',
     updatedAt: 0

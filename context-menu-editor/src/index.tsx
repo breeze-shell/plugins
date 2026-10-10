@@ -77,7 +77,7 @@ const appendEntry = (ctx: shell.menu_info_basic_js, kind: MenuKind) => {
     const profile = settings.profiles[kind];
     ctx.menu.append_item({
         type: 'button',
-        name: t('右键菜单编辑器', 'Context Menu Editor'),
+        name: entryName(),
         icon_svg: Icons.list,
         submenu: (sub: shell.menu_controller) => {
             sub.append_item({
@@ -123,13 +123,17 @@ const appendEntry = (ctx: shell.menu_info_basic_js, kind: MenuKind) => {
     });
 };
 
+const entryName = () => t('右键菜单编辑器', 'Context Menu Editor');
+
 const signatureOf = (captured: CapturedItem[]) => captured.map(item => `${item.key}|${item.name}|${item.hasSubmenu ? 's' : ''}`).join('\n');
 
 const recordSnapshot = (info: MenuContextInfo, captured: CapturedItem[]) => {
-    const signature = signatureOf(captured);
+    // 别的插件或本插件自己插进来的入口不该被当成"原生菜单项"
+    const nativeOnly = captured.filter(item => item.name !== entryName());
+    const signature = signatureOf(nativeOnly);
     if (signatures[info.kind] === signature && settings.snapshots[info.kind]) return;
     signatures[info.kind] = signature;
-    settings = { ...settings, snapshots: { ...settings.snapshots, [info.kind]: makeSnapshot(captured, info) } };
+    settings = { ...settings, snapshots: { ...settings.snapshots, [info.kind]: makeSnapshot(nativeOnly, info) } };
     persist();
 };
 
@@ -171,6 +175,7 @@ if (shell.fs.exists(E2E_MARKER)) {
         recordSnapshot,
         importSnapshot,
         nodesFromSnapshot,
+        log: (message: string) => helper.log(String(message)),
         flush: () => {
             if (saveTimer !== null) shell.infra.clearTimeout(saveTimer);
             saveTimer = null;
