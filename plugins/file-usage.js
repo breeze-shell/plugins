@@ -318,7 +318,11 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
     let reason_meta = meta_text
     let armed_meta = `· ${T.confirm}`
 
+    // 菜单关掉之后延时回调还会跑, 那时候控件已经销毁了
+    const alive = () => menu.valid()
+
     const paint = (color, svg) => {
+        if (!alive()) return
         button.background_color = color
         icon.svg = svg
     }
@@ -328,17 +332,18 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
             : power_icon(palette.icon_critical)
     // 悬停整行就把结束动作显出来: 行是命中区, 按钮只是它的图示
     const show_action = () => {
-        if (!button || settled) return
+        if (!button || settled || !alive()) return
         paint(armed ? palette.button_pressed : palette.button_hover, action_icon())
     }
     const reset_action = () => {
         armed = false
+        if (!alive()) return
         if (button) paint(palette.clear, power_icon(palette.icon))
         meta_text = set_meta(reason_meta)
     }
     // 第二次点击要离开第一次 300ms 才算确认, 免得手滑连点直接把进程结束掉
     const trigger = () => {
-        if (settled) return
+        if (settled || !alive()) return
         if (!armed) {
             armed = true
             armed_at = Date.now()
@@ -370,16 +375,18 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
 
     // 只有光标最上层那个控件收得到 enter/leave, 所以行、文字、按钮各挂一份
     const enter = () => {
+        if (!alive()) return
         hover_token++
         hover.background_color = palette.row_hover
         show_action()
     }
     const leave = () => {
+        if (!alive()) return
         hover.background_color = palette.clear
         // 点一下会闪一次 leave/enter, 所以复位要等一下
         const token = ++hover_token
         shell.infra.setTimeout(() => {
-            if (token != hover_token || settled) return
+            if (token != hover_token || settled || !alive()) return
             reset_action()
         }, 250)
     }
@@ -403,6 +410,7 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
     }
 
     const set_meta = raw => {
+        if (!alive()) return meta_text
         const fitted = fit_texts(
             title_text,
             raw,
