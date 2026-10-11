@@ -49,7 +49,6 @@ const PALETTE = () => {
         tertiary: light ? [0, 0, 0, 0.45] : [1, 1, 1, 0.53],
         // 悬停/按下的浓淡对齐原生项 (20/255 与 40/255)
         row_hover: light ? [0, 0, 0, 0.078] : [1, 1, 1, 0.078],
-        tip_bg: light ? [1, 1, 1, 0.97] : [0.24, 0.24, 0.24, 0.97],
         focus_ring: light ? [0, 0, 0, 0.5] : [1, 1, 1, 0.5],
         button_hover: light ? [0, 0, 0, 0.078] : [1, 1, 1, 0.078],
         button_pressed: light ? [0, 0, 0, 0.157] : [1, 1, 1, 0.157],
@@ -186,9 +185,15 @@ const still_holding = (path, pid) => {
     }
 }
 
-const holder_detail = entry => {
+const same_path = (a, b) => {
+    const norm = path => path.replaceAll("/", "\\").replace(/\\+$/, "").toLowerCase()
+    return norm(a) === norm(b)
+}
+
+const holder_detail = (entry, header_path = "") => {
     if (entry.is_current) return T.current
-    if (entry.held_file) return base_name(entry.held_file)
+    if (entry.held_file && !(header_path && same_path(entry.held_file, header_path)))
+        return base_name(entry.held_file)
     if (entry.working_directory) return T.folder
     return ""
 }
@@ -218,7 +223,7 @@ const text_x = metrics => {
 }
 
 // 同名的进程带上 pid, 不然分不清要结束哪一个
-const build_row = (menu, metrics, entry, path, with_pid = false) => {
+const build_row = (menu, metrics, entry, path, with_pid = false, under_header = false) => {
     const palette = PALETTE()
     const inset = metrics.background_inset
     const row_height = Math.round(metrics.item_height)
@@ -226,7 +231,7 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
     const icon_px = icon_size(metrics)
     const name = holder_title(entry)
     const title_text = with_pid ? `${name} (${entry.pid})` : name
-    const detail = holder_detail(entry)
+    const detail = holder_detail(entry, under_header ? path : "")
     let meta_text = detail ? `· ${detail}` : ""
 
     const row = flex()
@@ -386,53 +391,15 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
     }
 
     // 只有光标最上层那个控件收得到 enter/leave, 所以行、文字、按钮各挂一份
-    // 行里放不下的内容, 悬停时用浮层补出来 (放得下就不弹)
-    const tip_text = detail ? `${title_text} · ${detail}` : title_text
-    const host = menu.widget
-    let tip = null
-    if (host) {
-        tip = flex()
-        tip.manual_position = true
-        tip.background_color = palette.tip_bg
-        tip.border_radius = metrics.item_radius
-        tip.opacity = 0
-        tip.x = -2000
-        tip.width = Math.round(measure(tip_text, metrics.font_size)) + 16
-        tip.height = row_height
-        tip.set_padding(8, 8, 0, 0)
-        const tip_line = text()
-        tip_line.font_size = metrics.font_size
-        tip_line.font_weight = 400
-        tip_line.color = palette.text
-        tip_line.text = tip_text
-        tip.append_child(tip_line)
-        host.add_floating(tip)
-    }
-    const tip_show = () => {
-        if (!tip) return
-        if (measure(tip_text, metrics.font_size) <= text_room(metrics, row.width))
-            return
-        tip.x = inset
-        tip.y = row.get_global_y() - host.get_global_y() + row_height + 4
-        tip.opacity = 1
-    }
-    const tip_hide = () => {
-        if (!tip) return
-        tip.opacity = 0
-        tip.x = -2000
-    }
-
     const enter = () => {
         if (!alive()) return
         hover_token++
         hover.background_color = palette.row_hover
         show_action(false)
-        tip_show()
     }
     const leave = () => {
         if (!alive()) return
         hover.background_color = palette.clear
-        tip_hide()
         // 点一下会闪一次 leave/enter, 所以复位要等一下
         const token = ++hover_token
         shell.infra.setTimeout(() => {
@@ -672,6 +639,7 @@ const add_rows = (menu, used, with_headers) => {
                     entry,
                     item.path,
                     names.get(holder_title(entry)).size > 1,
+                    with_headers,
                 ),
             )
     })
