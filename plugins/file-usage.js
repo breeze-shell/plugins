@@ -330,9 +330,8 @@ const build_row = (menu, metrics, entry, path, with_pid = false, under_header = 
         tip.manual_position = true
         tip.background_color = palette.tip_bg
         tip.border_radius = metrics.item_radius
-        tip.opacity = 0
         tip.x = 0
-        tip.y = -60
+        tip.y = -400
         tip.set_padding(8, 8, 4, 4)
         tip_line1 = text()
         tip_line1.font_size = metrics.font_size
@@ -359,10 +358,9 @@ const build_row = (menu, metrics, entry, path, with_pid = false, under_header = 
             if (tip_line2)
                 tip_line2.text = fit(detail, width - 16, metrics.font_size)
         }
-        tip.opacity = 1
     }
     const tip_hide = () => {
-        if (tip) tip.opacity = 0
+        if (tip) tip.y = -400
     }
     menu.append_widget_after(row, -1)
 
