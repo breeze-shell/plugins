@@ -17,7 +17,7 @@ const T = zh
           confirm: "再点一次结束",
           count: n => `${n} 个进程`,
           one: (name, n) => `${name} 等 ${n} 个进程占用`,
-          many: (files, n) => `${files} 个文件被 ${n} 个进程占用`,
+          many: (files, n) => `${files} 个项目被 ${n} 个进程占用`,
       }
     : {
           checking: "Checking…",
