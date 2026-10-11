@@ -339,7 +339,11 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
         armed = false
         if (!alive()) return
         if (button) paint(palette.clear, power_icon(palette.icon))
-        meta_text = set_meta(reason_meta)
+        // 已经显示着原因就别再写一遍: 重复写会触发菜单项更新, 自绘的行会被重建掉
+        if (meta_text !== reason_meta) {
+            meta.color = palette.secondary
+            meta_text = set_meta(reason_meta)
+        }
     }
     // 第二次点击要离开第一次 300ms 才算确认, 免得手滑连点直接把进程结束掉
     const trigger = () => {
