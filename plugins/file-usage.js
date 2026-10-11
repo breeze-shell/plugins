@@ -1,6 +1,6 @@
 // @name: 文件占用查询
 // @description: 右键查看文件/文件夹被哪个进程占用, 并能一键结束该进程 / Show which process is using the file or folder, and kill it from the menu
-// @version: 0.1.0
+// @version: 0.2.0
 // @author: breeze-shell
 
 import * as shell from "mshell"
@@ -30,37 +30,30 @@ const T = zh
       }
 
 const LAYOUT = {
-    row: 26,
-    header: 24,
-    button: 24,
-    icon: 14,
     gap: 6,
     text_gap: 4,
+    min_button: 20,
+    max_button: 28,
     min_width: 200,
     max_width: 380,
 }
 
+// 跟 fluent token 对齐: 文字 TextFillColor*, 图标 SystemFillColor*, 底色 SubtleFillColor*
 const PALETTE = () => {
     const light = shell.breeze.is_light_theme()
     return {
         text: light ? [0, 0, 0, 0.89] : [1, 1, 1, 1],
         secondary: light ? [0, 0, 0, 0.62] : [1, 1, 1, 0.77],
         tertiary: light ? [0, 0, 0, 0.45] : [1, 1, 1, 0.53],
-        clear: [0, 0, 0, 0],
         row_hover: light ? [0, 0, 0, 0.157] : [1, 1, 1, 0.157],
-        critical: light ? [0.769, 0.169, 0.11, 1] : [1, 0.6, 0.643, 1],
-        // 结束按钮用 critical 的淡底 + critical 图标, 不用实心红
-        critical_tint: light ? [0.769, 0.169, 0.11, 0.12] : [1, 0.6, 0.643, 0.14],
-        critical_tint_strong: light
-            ? [0.769, 0.169, 0.11, 0.2]
-            : [1, 0.6, 0.643, 0.22],
-        success: light ? [0.059, 0.482, 0.059, 1] : [0.424, 0.796, 0.373, 1],
-        success_tint: light
-            ? [0.059, 0.482, 0.059, 0.12]
-            : [0.424, 0.796, 0.373, 0.14],
+        button_hover: light ? [0, 0, 0, 0.06] : [1, 1, 1, 0.08],
+        button_pressed: light ? [0, 0, 0, 0.1] : [1, 1, 1, 0.13],
+        clear: [0, 0, 0, 0],
         icon: light ? "#5b5b5b" : "#d8d8d8",
         icon_critical: light ? "#c42b1c" : "#ff99a4",
         icon_success: light ? "#0f7b0f" : "#6ccb5f",
+        critical: light ? [0.769, 0.169, 0.11, 1] : [1, 0.6, 0.643, 1],
+        success: light ? [0.059, 0.482, 0.059, 1] : [0.424, 0.796, 0.373, 1],
     }
 }
 
@@ -72,13 +65,6 @@ const check_icon = color =>
 
 const flex = () => shell.breeze_ui.widgets_factory.create_flex_layout_widget()
 const text = () => shell.breeze_ui.widgets_factory.create_text_widget()
-const image = svg => {
-    const widget = shell.breeze_ui.widgets_factory.create_image_widget()
-    widget.width = LAYOUT.icon
-    widget.height = LAYOUT.icon
-    widget.svg = svg
-    return widget
-}
 
 const base_name = path => path.replaceAll("\\", "/").split("/").pop()
 
@@ -112,9 +98,18 @@ const fit = (value, budget, font_size) => {
     return result + "…"
 }
 
-// 行的内容宽度: 文字左偏移 + 结束按钮 + 右侧预留
+// 结束按钮比菜单项矮一点, 正好落在菜单自己的网格上
+const button_size = metrics =>
+    clamp(Math.round(metrics.item_height) - 1, LAYOUT.min_button, LAYOUT.max_button)
+
+const icon_size = metrics => Math.round(button_size(metrics) * 0.55)
+
 const text_room = (metrics, row_width) =>
-    row_width - metrics.text_offset - metrics.right_reserved - LAYOUT.gap - LAYOUT.button
+    row_width -
+    metrics.text_offset -
+    metrics.right_reserved -
+    LAYOUT.gap -
+    button_size(metrics)
 
 const content_width = (metrics, title, title_size, meta, meta_size) =>
     metrics.text_offset +
@@ -122,7 +117,7 @@ const content_width = (metrics, title, title_size, meta, meta_size) =>
     measure(title, title_size) +
     (meta ? LAYOUT.text_gap + measure(meta, meta_size) : 0) +
     LAYOUT.gap +
-    LAYOUT.button
+    button_size(metrics)
 
 const fit_texts = (title, meta, room, title_size, meta_size) => {
     const title_width = measure(title, title_size)
@@ -156,22 +151,24 @@ const holder_detail = entry => {
     return ""
 }
 
-// 高亮背景按原生菜单项左右内缩, 文字按原生菜单项的左偏移对齐
+// 整行按菜单自己的尺寸排: 行高 = 原生菜单项高度, 高亮背景一样内缩, 文字一样左偏移
 const build_row = (menu, metrics, entry) => {
     const palette = PALETTE()
     const inset = metrics.background_inset
+    const row_height = Math.round(metrics.item_height)
+    const icon_box = button_size(metrics)
+    const icon_px = icon_size(metrics)
     const title_text = holder_title(entry)
     const detail = holder_detail(entry)
     let meta_text = detail ? `· ${detail}` : ""
 
     const row = flex()
-    row.height = LAYOUT.row
+    row.height = row_height
     row.horizontal = true
-    // 高亮背景按原生菜单项左右内缩, 所以行本身要先让出这段
     row.set_padding(inset, 0, 0, 0)
 
     const hover = flex()
-    hover.height = LAYOUT.row
+    hover.height = row_height
     hover.horizontal = true
     hover.align_items = "center"
     hover.border_radius = metrics.item_radius
@@ -182,6 +179,7 @@ const build_row = (menu, metrics, entry) => {
         0,
         0,
     )
+    hover.set_animation(".a", true)
 
     const body = flex()
     body.horizontal = true
@@ -192,7 +190,7 @@ const build_row = (menu, metrics, entry) => {
 
     const title = text()
     title.font_size = metrics.font_size
-    title.font_weight = 600
+    title.font_weight = 400
     title.color = palette.text
 
     const meta = text()
@@ -208,13 +206,17 @@ const build_row = (menu, metrics, entry) => {
     let icon = null
     if (!entry.is_current) {
         button = flex()
-        button.width = LAYOUT.button
-        button.height = LAYOUT.button
+        button.width = icon_box
+        button.height = icon_box
         button.border_radius = 4
         button.align_items = "center"
         button.justify_content = "center"
         button.background_color = palette.clear
-        icon = image(power_icon(palette.icon))
+        button.set_animation(".a", true)
+        icon = shell.breeze_ui.widgets_factory.create_image_widget()
+        icon.width = icon_px
+        icon.height = icon_px
+        icon.svg = power_icon(palette.icon)
         button.append_child(icon)
         hover.append_child(button)
     }
@@ -224,14 +226,13 @@ const build_row = (menu, metrics, entry) => {
     let armed = false
     let settled = false
 
-    const paint = (fill, svg) => {
-        button.background_color = fill
+    const paint = (color, svg) => {
+        button.background_color = color
         icon.svg = svg
     }
-    const idle = () => paint(palette.clear, power_icon(palette.icon))
 
     hover.on_mouse_enter = () => {
-        hover.background_color = settled ? palette.success_tint : palette.row_hover
+        hover.background_color = palette.row_hover
     }
     hover.on_mouse_leave = () => {
         hover.background_color = palette.clear
@@ -244,7 +245,7 @@ const build_row = (menu, metrics, entry) => {
             hover_token++
             if (settled) return
             paint(
-                armed ? palette.critical_tint_strong : palette.critical_tint,
+                armed ? palette.button_pressed : palette.button_hover,
                 armed
                     ? check_icon(palette.icon_critical)
                     : power_icon(palette.icon_critical),
@@ -256,28 +257,24 @@ const build_row = (menu, metrics, entry) => {
             shell.infra.setTimeout(() => {
                 if (token != hover_token || settled) return
                 armed = false
-                idle()
+                paint(palette.clear, power_icon(palette.icon))
             }, 250)
         }
         button.on_click = () => {
             if (settled) return
             if (!armed) {
                 armed = true
-                paint(
-                    palette.critical_tint_strong,
-                    check_icon(palette.icon_critical),
-                )
+                paint(palette.button_pressed, check_icon(palette.icon_critical))
                 return
             }
             armed = false
             if (entry.terminate()) {
                 settled = true
-                hover.background_color = palette.success_tint
                 paint(palette.clear, check_icon(palette.icon_success))
                 meta_text = `· ${T.done}`
                 meta.color = palette.success
             } else {
-                paint(palette.clear, power_icon(palette.critical))
+                paint(palette.clear, power_icon(palette.icon_critical))
                 meta_text = `· ${T.failed}`
                 meta.color = palette.critical
             }
@@ -314,34 +311,29 @@ const build_row = (menu, metrics, entry) => {
 const build_header = (menu, metrics, name, count) => {
     const palette = PALETTE()
     const inset = metrics.background_inset
+    const row_height = Math.round(metrics.item_height)
     const size = Math.round(metrics.font_size * 0.86)
 
     const row = flex()
-    row.height = LAYOUT.header
+    row.height = row_height
     row.horizontal = true
     row.set_padding(inset, 0, 0, 0)
 
-    const hover = flex()
-    hover.height = LAYOUT.header
-    hover.horizontal = true
-    hover.align_items = "center"
-    hover.border_radius = metrics.item_radius
-    hover.set_padding(
+    const strip = flex()
+    strip.height = row_height
+    strip.horizontal = true
+    strip.align_items = "center"
+    strip.justify_content = "space_between"
+    strip.set_padding(
         Math.max(metrics.text_offset - inset, 0),
         Math.max(metrics.right_reserved - inset, 0),
         0,
         0,
     )
 
-    const strip = flex()
-    strip.horizontal = true
-    strip.align_items = "center"
-    strip.justify_content = "space_between"
-    strip.flex_grow = 1
-
     const title = text()
     title.font_size = size
-    title.font_weight = 600
+    title.font_weight = 400
     title.color = palette.secondary
 
     const counter = text()
@@ -352,8 +344,7 @@ const build_header = (menu, metrics, name, count) => {
 
     strip.append_child(title)
     strip.append_child(counter)
-    hover.append_child(strip)
-    row.append_child(hover)
+    row.append_child(strip)
     menu.append_widget_after(row, -1)
 
     const wanted = clamp(
@@ -366,7 +357,7 @@ const build_header = (menu, metrics, name, count) => {
     )
     const apply = width => {
         row.width = width
-        hover.width = width - inset * 2
+        strip.width = width - inset * 2
         const room =
             width - metrics.text_offset - metrics.right_reserved - LAYOUT.gap
         title.max_width = Math.max(40, room - measure(counter.text, size))
