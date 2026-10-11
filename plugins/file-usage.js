@@ -330,10 +330,15 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
         armed
             ? check_icon(palette.icon_critical)
             : power_icon(palette.icon_critical)
-    // 悬停整行就把结束动作显出来: 行是命中区, 按钮只是它的图示
-    const show_action = () => {
+    // 悬停整行只让图标浮出来, 底盘留给光标真的停在按钮上的时候
+    const show_action = over_button => {
         if (!button || settled || !alive()) return
-        paint(armed ? palette.button_pressed : palette.button_hover, action_icon())
+        const hover_bg = armed
+            ? palette.button_pressed
+            : over_button
+              ? palette.button_hover
+              : palette.clear
+        paint(hover_bg, action_icon())
     }
     const reset_action = () => {
         armed = false
@@ -382,7 +387,7 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
         if (!alive()) return
         hover_token++
         hover.background_color = palette.row_hover
-        show_action()
+        show_action(false)
     }
     const leave = () => {
         if (!alive()) return
@@ -402,8 +407,17 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
     row.on_focus = enter
     row.on_blur = leave
     if (!entry.is_current) {
-        button.on_mouse_enter = enter
-        button.on_mouse_leave = leave
+        button.on_mouse_enter = () => {
+            if (!alive()) return
+            hover_token++
+            hover.background_color = palette.row_hover
+            show_action(true)
+        }
+        button.on_mouse_leave = () => {
+            if (!alive()) return
+            hover.background_color = palette.row_hover
+            show_action(false)
+        }
         body.on_click = trigger
         button.on_click = trigger
         // 回车 257/335, 空格 32, Esc 256
