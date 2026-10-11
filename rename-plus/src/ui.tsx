@@ -557,6 +557,7 @@ export const TextArea = ({
             borderRadius={Radius.md}
             paddingX={Space.md}
             paddingY={Space.md}
+            multiline
             backgroundColor={c.codeBg}
             borderColor={c.controlStroke}
             focusBorderColor={c.accent}
@@ -829,25 +830,55 @@ export const EmptyState = ({
 };
 
 // 左边固定宽度标签, 右边控件撑满剩余宽度, 所有行右边缘自然对齐。
-export const FieldRow = ({ label, hint, children }: { label: string; hint?: string; children?: ReactNode }) => (
-    <flex horizontal alignItems="center" gap={Space.lg} minHeight={Control.height}>
-        <flex gap={1} width={Control.label} flexShrink={0}>
-            <Text size={Font.body} tone="secondary" ellipsis>
-                {label}
-            </Text>
-            {hint && (
-                <Text size={Font.tiny} tone="tertiary">
-                    {hint}
+// 标签下的小字只放几个字, 长说明走 help 单独一行, 否则会画到控件上。
+const HELP_WIDTH = 236;
+
+export const FieldRow = ({
+    label,
+    hint,
+    help,
+    children
+}: {
+    label: string;
+    hint?: string;
+    help?: string;
+    children?: ReactNode;
+}) => (
+    <flex gap={Space.xs}>
+        <flex horizontal alignItems="center" gap={Space.lg} minHeight={Control.height}>
+            <flex gap={1} width={Control.label} flexShrink={0}>
+                <Text size={Font.body} tone="secondary" ellipsis>
+                    {label}
                 </Text>
-            )}
+                {hint && (
+                    <Text size={Font.tiny} tone="tertiary" maxWidth={Control.label} ellipsis>
+                        {hint}
+                    </Text>
+                )}
+            </flex>
+            <flex horizontal alignItems="center" gap={Space.md} flexGrow={1} flexShrink={1}>
+                {children}
+            </flex>
         </flex>
-        <flex horizontal alignItems="center" gap={Space.md} flexGrow={1} flexShrink={1}>
-            {children}
-        </flex>
+        {help && (
+            <Text size={Font.tiny} tone="tertiary" maxWidth={HELP_WIDTH}>
+                {help}
+            </Text>
+        )}
     </flex>
 );
 
-export const StackedRow = ({ label, hint, children }: { label: string; hint?: string; children?: ReactNode }) => (
+export const StackedRow = ({
+    label,
+    hint,
+    help,
+    children
+}: {
+    label: string;
+    hint?: string;
+    help?: string;
+    children?: ReactNode;
+}) => (
     <flex gap={Space.sm} alignItems="stretch" paddingTop={Space.xs} paddingBottom={Space.xs}>
         <flex gap={1}>
             <Text size={Font.body} tone="secondary">
@@ -860,5 +891,10 @@ export const StackedRow = ({ label, hint, children }: { label: string; hint?: st
             )}
         </flex>
         {children}
+        {help && (
+            <Text size={Font.tiny} tone="tertiary" maxWidth={HELP_WIDTH}>
+                {help}
+            </Text>
+        )}
     </flex>
 );

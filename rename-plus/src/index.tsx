@@ -41,8 +41,7 @@ const onMenu = (ctx: shell.menu_info_basic_js) => {
     const folderView = ctx.context.folder_view;
     if (!folderView) return;
 
-    const selected = folderView.selected_files ?? [];
-    const paths = selected.length > 0 ? selected : folderView.focused_file_path ? [folderView.focused_file_path] : [];
+    const paths = folderView.selected_files ?? [];
     if (paths.length === 0) return;
 
     const items = collectItems(paths);

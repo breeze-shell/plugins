@@ -83,7 +83,7 @@ const PresetRow = memo(({ preset, selected, onClick }: { preset: Preset; selecte
             horizontal
             alignItems="center"
             gap={Space.lg}
-            height={54}
+            height={50}
             flexShrink={0}
             paddingLeft={Space.md}
             paddingRight={Space.md}
@@ -98,8 +98,8 @@ const PresetRow = memo(({ preset, selected, onClick }: { preset: Preset; selecte
             animationCurve={{ ...FAST, vars: COLOR_VARS }}
         >
             <flex
-                width={26}
-                height={26}
+                width={24}
+                height={24}
                 flexShrink={0}
                 borderRadius={Radius.md}
                 justifyContent="center"
@@ -219,7 +219,7 @@ const ParamsPanel = ({
                 const grouped = field.group && field.group !== previous?.group;
                 const control =
                     field.kind === 'chips' ? (
-                        <StackedRow key={`f-${index}`} label={field.label} hint={field.hint}>
+                        <StackedRow key={`f-${index}`} label={field.label} hint={field.hint} help={field.help}>
                             <ChipsRow
                                 options={field.options ?? []}
                                 onPick={value => {
@@ -235,7 +235,7 @@ const ParamsPanel = ({
                             />
                         </StackedRow>
                     ) : field.kind === 'textarea' ? (
-                        <StackedRow key={`f-${index}`} label={field.label} hint={field.hint}>
+                        <StackedRow key={`f-${index}`} label={field.label} hint={field.hint} help={field.help}>
                             <TextArea
                                 value={String(params[field.key] ?? '')}
                                 onChange={value => set(field.key, value)}
@@ -245,7 +245,7 @@ const ParamsPanel = ({
                             />
                         </StackedRow>
                     ) : (
-                        <FieldRow key={`f-${index}`} label={field.label} hint={field.hint}>
+                        <FieldRow key={`f-${index}`} label={field.label} hint={field.hint} help={field.help}>
                             <FieldControl field={field} params={params} set={set} />
                         </FieldRow>
                     );
@@ -708,7 +708,7 @@ const RenameApp = ({ items, settings, onSettings, requestModTimes, onClose }: Re
             </flex>
             <Divider />
 
-            <flex horizontal gap={Space.xl} flexGrow={1} padding={Space.xl} alignItems="stretch">
+            <flex horizontal gap={Space.xl} flexGrow={1} flexShrink={1} minHeight={0} padding={Space.xl} alignItems="stretch">
                 <Panel c={c} width={COL_PRESETS} padding={Space.md} gap={2} scroll bordered={false} background={c.columnBg}>
                     {itemList.length === 1 && (
                         <>

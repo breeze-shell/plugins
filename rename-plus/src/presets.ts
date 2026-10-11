@@ -13,6 +13,7 @@ export type Field = {
     key: string;
     label: string;
     hint?: string;
+    help?: string;
     placeholder?: string;
     width?: number;
     grow?: boolean;
@@ -492,7 +493,7 @@ const dateTime: Preset = {
             ]
         },
         { kind: 'chips', key: 'pattern', label: t('常用格式', 'Presets'), group: '时间格式', options: DATE_PATTERN_CHIPS },
-        { kind: 'text', key: 'pattern', label: t('时间格式', 'Format'), width: 220, mono: true, hint: t('可用 YYYY MM DD HH mm ss', 'Tokens: YYYY MM DD HH mm ss') },
+        { kind: 'text', key: 'pattern', label: t('时间格式', 'Format'), width: 220, mono: true, help: t('可用 YYYY MM DD HH mm ss', 'Tokens: YYYY MM DD HH mm ss') },
         {
             kind: 'select',
             key: 'position',
