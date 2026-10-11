@@ -75,6 +75,15 @@ const reason_icon = (entry, color) =>
 const flex = () => shell.breeze_ui.widgets_factory.create_flex_layout_widget()
 const text = () => shell.breeze_ui.widgets_factory.create_text_widget()
 
+const icon_cache = new Map()
+const process_icon = path => {
+    if (!icon_cache.has(path)) {
+        if (icon_cache.size >= 64) icon_cache.clear()
+        icon_cache.set(path, shell.win32.load_file_icon(path))
+    }
+    return icon_cache.get(path)
+}
+
 const base_name = path => path.replaceAll("\\", "/").split("/").pop()
 
 const char_em = ch => {
@@ -235,17 +244,21 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
     body.append_child(title)
     body.append_child(meta)
 
-    // 图标列里放占用原因, 空着会显得像少了图标
+    // 图标列里放进程自己的图标, 拿不到就退回"占用原因"的字形
     if (column > 0) {
         const slot = flex()
         slot.width = column
         slot.height = column
         slot.align_items = "center"
         slot.justify_content = "center"
-        const glyph = shell.breeze_ui.widgets_factory.create_image_widget()
+        const icon_id = entry.path ? process_icon(entry.path) : 0
+        const glyph = icon_id
+            ? shell.breeze_ui.widgets_factory.create_icon_widget()
+            : shell.breeze_ui.widgets_factory.create_image_widget()
+        if (icon_id) glyph.icon = icon_id
+        else glyph.svg = reason_icon(entry, palette.icon)
         glyph.width = column
         glyph.height = column
-        glyph.svg = reason_icon(entry, palette.icon)
         slot.append_child(glyph)
         hover.append_child(slot)
         hover.gap = Math.max(metrics.text_offset - metrics.icon_offset - column, 0)
