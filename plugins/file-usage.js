@@ -52,6 +52,7 @@ const PALETTE = () => {
         focus_ring: light ? [0, 0, 0, 0.5] : [1, 1, 1, 0.5],
         button_hover: light ? [0, 0, 0, 0.078] : [1, 1, 1, 0.078],
         button_pressed: light ? [0, 0, 0, 0.157] : [1, 1, 1, 0.157],
+        tip_bg: light ? [1, 1, 1, 0.97] : [0.24, 0.24, 0.24, 0.97],
         clear: [0, 0, 0, 0],
         icon: light ? "#5b5b5b" : "#d8d8d8",
         icon_critical: light ? "#c42b1c" : "#ff99a4",
@@ -317,6 +318,30 @@ const build_row = (menu, metrics, entry, path, with_pid = false, under_header = 
         hover.append_child(button)
     }
     row.append_child(hover)
+
+    // 行里放不下的内容, 悬停时在行上方补一个浮层
+    // 宿主必须是行: 挂在菜单上的控件不会被渲染
+    const tip_text = detail ? `${title_text} · ${detail}` : title_text
+    let tip = null
+    if (measure(tip_text, metrics.font_size) > text_room(metrics, row.width)) {
+        tip = flex()
+        tip.manual_position = true
+        tip.background_color = palette.tip_bg
+        tip.border_radius = metrics.item_radius
+        tip.opacity = 0
+        tip.width = Math.round(measure(tip_text, metrics.font_size)) + 16
+        tip.height = row_height
+        tip.x = 0
+        tip.y = -(row_height + 4)
+        tip.set_padding(8, 8, 0, 0)
+        const tip_line = text()
+        tip_line.font_size = metrics.font_size
+        tip_line.font_weight = 400
+        tip_line.color = palette.text
+        tip_line.text = tip_text
+        tip.append_child(tip_line)
+        row.append_child(tip)
+    }
     menu.append_widget_after(row, -1)
 
     let armed = false
@@ -396,10 +421,12 @@ const build_row = (menu, metrics, entry, path, with_pid = false, under_header = 
         hover_token++
         hover.background_color = palette.row_hover
         show_action(false)
+        if (tip) tip.opacity = 1
     }
     const leave = () => {
         if (!alive()) return
         hover.background_color = palette.clear
+        if (tip) tip.opacity = 0
         // 点一下会闪一次 leave/enter, 所以复位要等一下
         const token = ++hover_token
         shell.infra.setTimeout(() => {
