@@ -388,11 +388,18 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
     hover.on_mouse_leave = leave
     body.on_mouse_enter = enter
     body.on_mouse_leave = leave
+    row.on_focus = enter
+    row.on_blur = leave
     if (!entry.is_current) {
         button.on_mouse_enter = enter
         button.on_mouse_leave = leave
         body.on_click = trigger
         button.on_click = trigger
+        // 回车 257/335, 空格 32, Esc 256
+        row.on_key_down = key => {
+            if (key == 257 || key == 335 || key == 32) trigger()
+            else if (key == 256 && armed) reset_action()
+        }
     }
 
     const set_meta = raw => {
