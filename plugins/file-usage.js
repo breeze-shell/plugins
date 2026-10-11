@@ -26,7 +26,7 @@ const T = zh
           done: "closed",
           failed: "not closed",
           confirm: "click again to close",
-          count: n => `${n} process(es)`,
+          count: n => (n === 1 ? "1 process" : `${n} processes`),
           one: (name, n) => `Used by ${name} and ${n - 1} more`,
           many: (files, n) => `${files} items used by ${n} processes`,
       }
