@@ -48,6 +48,7 @@ const PALETTE = () => {
         secondary: light ? [0, 0, 0, 0.62] : [1, 1, 1, 0.77],
         tertiary: light ? [0, 0, 0, 0.45] : [1, 1, 1, 0.53],
         row_hover: light ? [0, 0, 0, 0.157] : [1, 1, 1, 0.157],
+        focus_ring: light ? [0, 0, 0, 0.5] : [1, 1, 1, 0.5],
         button_hover: light ? [0, 0, 0, 0.06] : [1, 1, 1, 0.08],
         button_pressed: light ? [0, 0, 0, 0.1] : [1, 1, 1, 0.13],
         clear: [0, 0, 0, 0],
@@ -404,8 +405,17 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
     hover.on_mouse_leave = leave
     body.on_mouse_enter = enter
     body.on_mouse_leave = leave
-    row.on_focus = enter
-    row.on_blur = leave
+    row.on_focus = () => {
+        if (!alive()) return
+        enter()
+        hover.border_color = palette.focus_ring
+        hover.border_width = 1
+    }
+    row.on_blur = () => {
+        if (!alive()) return
+        hover.border_width = 0
+        leave()
+    }
     if (!entry.is_current) {
         button.on_mouse_enter = () => {
             if (!alive()) return
