@@ -85,17 +85,27 @@ const measure = (value, font_size) =>
 
 const clamp = (value, low, high) => Math.min(Math.max(value, low), high)
 
+const width_of = (chars, font_size) =>
+    chars.reduce((width, ch) => width + char_em(ch) * font_size, 0)
+
+// 从中间截断: 进程名和文件名都得留住尾巴 (扩展名)
 const fit = (value, budget, font_size) => {
     if (measure(value, font_size) <= budget) return value
-    let result = ""
-    let used = font_size
-    for (const ch of value) {
+    const chars = [...value]
+    const dot = value.lastIndexOf(".")
+    let tail = dot > 0 ? [...value.slice(dot)] : []
+    if (width_of(tail, font_size) > budget * 0.45) tail = chars.slice(-3)
+    const head = chars.slice(0, chars.length - tail.length)
+    const room = budget - width_of(tail, font_size) - font_size
+    const result = []
+    let used = 0
+    for (const ch of head) {
         const width = char_em(ch) * font_size
-        if (used + width > budget) break
+        if (used + width > room) break
         used += width
-        result += ch
+        result.push(ch)
     }
-    return result + "…"
+    return result.join("") + "…" + tail.join("")
 }
 
 // 结束按钮比菜单项矮一点, 正好落在菜单自己的网格上
@@ -152,13 +162,15 @@ const holder_detail = entry => {
 }
 
 // 整行按菜单自己的尺寸排: 行高 = 原生菜单项高度, 高亮背景一样内缩, 文字一样左偏移
-const build_row = (menu, metrics, entry) => {
+// 同名的进程带上 pid, 不然分不清要结束哪一个
+const build_row = (menu, metrics, entry, with_pid = false) => {
     const palette = PALETTE()
     const inset = metrics.background_inset
     const row_height = Math.round(metrics.item_height)
     const icon_box = button_size(metrics)
     const icon_px = icon_size(metrics)
-    const title_text = holder_title(entry)
+    const name = holder_title(entry)
+    const title_text = with_pid ? `${name} (${entry.pid})` : name
     const detail = holder_detail(entry)
     let meta_text = detail ? `· ${detail}` : ""
 
@@ -225,61 +237,73 @@ const build_row = (menu, metrics, entry) => {
 
     let armed = false
     let settled = false
+    let armed_at = 0
+    let hover_token = 0
 
     const paint = (color, svg) => {
         button.background_color = color
         icon.svg = svg
     }
+    const action_icon = () =>
+        armed
+            ? check_icon(palette.icon_critical)
+            : power_icon(palette.icon_critical)
+    // 悬停整行就把结束动作显出来: 行是命中区, 按钮只是它的图示
+    const show_action = () => {
+        if (!button || settled) return
+        paint(armed ? palette.button_pressed : palette.button_hover, action_icon())
+    }
+    // 第二次点击要离开第一次 300ms 才算确认, 免得手滑连点直接把进程结束掉
+    const trigger = () => {
+        if (settled) return
+        if (!armed) {
+            armed = true
+            armed_at = Date.now()
+            paint(palette.button_pressed, check_icon(palette.icon_critical))
+            return
+        }
+        if (Date.now() - armed_at < 300) return
+        armed = false
+        if (entry.terminate()) {
+            settled = true
+            hover.background_color = palette.row_hover
+            paint(palette.clear, check_icon(palette.icon_success))
+            meta_text = `· ${T.done}`
+            meta.color = palette.success
+        } else {
+            paint(palette.clear, power_icon(palette.icon_critical))
+            meta_text = `· ${T.failed}`
+            meta.color = palette.critical
+        }
+        meta.text = meta_text
+    }
 
-    hover.on_mouse_enter = () => {
+    // 只有光标最上层那个控件收得到 enter/leave, 所以行、文字、按钮各挂一份
+    const enter = () => {
+        hover_token++
         hover.background_color = palette.row_hover
+        show_action()
     }
-    hover.on_mouse_leave = () => {
+    const leave = () => {
         hover.background_color = palette.clear
+        // 点一下会闪一次 leave/enter, 所以复位要等一下
+        const token = ++hover_token
+        shell.infra.setTimeout(() => {
+            if (token != hover_token || settled) return
+            armed = false
+            if (button) paint(palette.clear, power_icon(palette.icon))
+        }, 250)
     }
 
+    hover.on_mouse_enter = enter
+    hover.on_mouse_leave = leave
+    body.on_mouse_enter = enter
+    body.on_mouse_leave = leave
     if (!entry.is_current) {
-        // 点击瞬间会闪一次 leave/enter, 所以移开要等一小会儿再复位
-        let hover_token = 0
-        button.on_mouse_enter = () => {
-            hover_token++
-            if (settled) return
-            paint(
-                armed ? palette.button_pressed : palette.button_hover,
-                armed
-                    ? check_icon(palette.icon_critical)
-                    : power_icon(palette.icon_critical),
-            )
-        }
-        button.on_mouse_leave = () => {
-            const token = ++hover_token
-            if (settled) return
-            shell.infra.setTimeout(() => {
-                if (token != hover_token || settled) return
-                armed = false
-                paint(palette.clear, power_icon(palette.icon))
-            }, 250)
-        }
-        button.on_click = () => {
-            if (settled) return
-            if (!armed) {
-                armed = true
-                paint(palette.button_pressed, check_icon(palette.icon_critical))
-                return
-            }
-            armed = false
-            if (entry.terminate()) {
-                settled = true
-                paint(palette.clear, check_icon(palette.icon_success))
-                meta_text = `· ${T.done}`
-                meta.color = palette.success
-            } else {
-                paint(palette.clear, power_icon(palette.icon_critical))
-                meta_text = `· ${T.failed}`
-                meta.color = palette.critical
-            }
-            meta.text = meta_text
-        }
+        button.on_mouse_enter = enter
+        button.on_mouse_leave = leave
+        body.on_click = trigger
+        button.on_click = trigger
     }
 
     const wanted = clamp(
@@ -403,6 +427,13 @@ const summary = used => {
 
 const add_rows = (menu, used, with_headers) => {
     const metrics = menu.metrics
+    const names = new Map()
+    for (const item of used)
+        for (const entry of item.processes) {
+            const name = holder_title(entry)
+            if (!names.has(name)) names.set(name, new Set())
+            names.get(name).add(entry.pid)
+        }
     const rows = []
     used.forEach((item, index) => {
         if (with_headers) {
@@ -417,7 +448,14 @@ const add_rows = (menu, used, with_headers) => {
             )
         }
         for (const entry of item.processes)
-            rows.push(build_row(menu, metrics, entry))
+            rows.push(
+                build_row(
+                    menu,
+                    metrics,
+                    entry,
+                    names.get(holder_title(entry)).size > 1,
+                ),
+            )
     })
     sync_width(menu, rows)
 }
