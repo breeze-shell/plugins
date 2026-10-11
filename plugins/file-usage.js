@@ -14,6 +14,7 @@ const T = zh
           folder: "工作目录",
           done: "已结束",
           failed: "结束失败",
+          confirm: "再点一次结束",
           count: n => `${n} 个进程`,
           one: (name, n) => `${name} 等 ${n} 个进程占用`,
           many: (files, n) => `${files} 个文件被 ${n} 个进程占用`,
@@ -24,6 +25,7 @@ const T = zh
           folder: "working folder",
           done: "closed",
           failed: "not closed",
+          confirm: "click again to close",
           count: n => `${n} process(es)`,
           one: (name, n) => `Used by ${name} and ${n - 1} more`,
           many: (files, n) => `${files} items used by ${n} processes`,
@@ -290,6 +292,8 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
     let settled = false
     let armed_at = 0
     let hover_token = 0
+    let reason_meta = meta_text
+    let armed_meta = `· ${T.confirm}`
 
     const paint = (color, svg) => {
         button.background_color = color
@@ -311,6 +315,7 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
             armed = true
             armed_at = Date.now()
             paint(palette.button_pressed, check_icon(palette.icon_critical))
+            meta_text = set_meta(armed_meta)
             return
         }
         if (Date.now() - armed_at < 300) return
@@ -319,21 +324,20 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
             settled = true
             hover.background_color = palette.row_hover
             paint(palette.clear, check_icon(palette.icon_success))
-            meta_text = `· ${T.done}`
+            meta_text = set_meta(`· ${T.done}`)
             meta.color = palette.success
         } else if (still_holding(path, entry.pid)) {
             paint(palette.clear, power_icon(palette.icon_critical))
-            meta_text = `· ${T.failed}`
+            meta_text = set_meta(`· ${T.failed}`)
             meta.color = palette.critical
         } else {
             // 还没点到它就自己退出了, 按已结束处理
             settled = true
             hover.background_color = palette.row_hover
             paint(palette.clear, check_icon(palette.icon_success))
-            meta_text = `· ${T.done}`
+            meta_text = set_meta(`· ${T.done}`)
             meta.color = palette.success
         }
-        meta.text = meta_text
     }
 
     // 只有光标最上层那个控件收得到 enter/leave, 所以行、文字、按钮各挂一份
@@ -350,6 +354,7 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
             if (token != hover_token || settled) return
             armed = false
             if (button) paint(palette.clear, power_icon(palette.icon))
+            meta_text = set_meta(reason_meta)
         }, 250)
     }
 
@@ -364,8 +369,34 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
         button.on_click = trigger
     }
 
+    const set_meta = raw => {
+        const fitted = fit_texts(
+            title_text,
+            raw,
+            text_room(metrics, row.width),
+            title.font_size,
+            meta.font_size,
+        )
+        if (!fitted.meta) {
+            meta.text = ""
+            return ""
+        }
+        meta.max_width = fitted.meta.width
+        meta.text = fitted.meta.value
+        return fitted.meta.value
+    }
+
     const wanted = clamp(
-        content_width(metrics, title_text, title.font_size, meta_text, meta.font_size),
+        Math.max(
+            content_width(metrics, title_text, title.font_size, meta_text, meta.font_size),
+            content_width(
+                metrics,
+                title_text,
+                title.font_size,
+                `· ${T.confirm}`,
+                meta.font_size,
+            ),
+        ),
         LAYOUT.min_width,
         LAYOUT.max_width,
     )
@@ -383,7 +414,18 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
         title.text = texts.title.value
         if (!texts.meta) return
         meta.max_width = texts.meta.width
-        meta.text = texts.meta.value
+        if (!armed && !settled) {
+            reason_meta = texts.meta.value
+            armed_meta = fit_texts(
+                title_text,
+                `· ${T.confirm}`,
+                text_room(metrics, width),
+                title.font_size,
+                meta.font_size,
+            ).meta.value
+            meta_text = reason_meta
+        }
+        meta.text = meta_text
     }
 
     apply(wanted)
