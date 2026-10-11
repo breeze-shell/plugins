@@ -331,6 +331,11 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
         if (!button || settled) return
         paint(armed ? palette.button_pressed : palette.button_hover, action_icon())
     }
+    const reset_action = () => {
+        armed = false
+        if (button) paint(palette.clear, power_icon(palette.icon))
+        meta_text = set_meta(reason_meta)
+    }
     // 第二次点击要离开第一次 300ms 才算确认, 免得手滑连点直接把进程结束掉
     const trigger = () => {
         if (settled) return
@@ -375,9 +380,7 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
         const token = ++hover_token
         shell.infra.setTimeout(() => {
             if (token != hover_token || settled) return
-            armed = false
-            if (button) paint(palette.clear, power_icon(palette.icon))
-            meta_text = set_meta(reason_meta)
+            reset_action()
         }, 250)
     }
 
