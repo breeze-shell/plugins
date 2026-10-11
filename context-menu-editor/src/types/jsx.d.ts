@@ -1,6 +1,4 @@
-// breeze-ui 宿主组件在 JSX 里的类型, 与 breeze-shell 内部 renderer 的
-// componentMap 一一对应: 传了未声明的属性会在运行时报
-// "Unknown property ... for component type ..."。
+// 与 breeze-shell renderer 的 componentMap 一一对应: 未声明的属性在运行时会报 Unknown property
 import { breeze_paint } from 'mshell';
 
 type AnimationCurve = {
@@ -9,10 +7,19 @@ type AnimationCurve = {
     vars: string[];
 };
 
+// 任何 widget 都能参与 flex 布局: flex/text/textbox/img 都吃这几项。
+type FlexItemProps = {
+    flexGrow?: number;
+    flexShrink?: number;
+    minWidth?: number;
+    minHeight?: number;
+    alignSelf?: 'auto' | 'start' | 'center' | 'end' | 'stretch' | 'baseline';
+};
+
 declare module 'react' {
     namespace JSX {
         interface IntrinsicElements {
-            flex: {
+            flex: FlexItemProps & {
                 padding?: number;
                 paddingTop?: number;
                 paddingRight?: number;
@@ -43,17 +50,21 @@ declare module 'react' {
                 height?: number;
                 autoSize?: boolean;
                 gap?: number;
-                flexGrow?: number;
-                flexShrink?: number;
                 maxHeight?: number;
                 enableScrolling?: boolean;
                 enableChildClipping?: boolean;
                 cropOverflow?: boolean;
                 opacity?: number;
                 animationCurve?: AnimationCurve;
+                flexWrap?: 'nowrap' | 'wrap' | 'wrap-reverse';
+                reverse?: boolean;
+                scrollBarColor?: string;
+                scrollBarWidth?: number;
+                scrollBarRadius?: number;
+                scrollBarMargin?: number;
                 cursor?: string;
             };
-            text: {
+            text: FlexItemProps & {
                 text?: string[] | string;
                 fontSize?: number;
                 fontWeight?: number;
@@ -64,13 +75,13 @@ declare module 'react' {
                 y?: number;
                 width?: number;
                 height?: number;
-                flexGrow?: number;
-                flexShrink?: number;
                 maxWidth?: number;
                 fontFamily?: 'main' | 'monospace' | 'fallback';
                 animationCurve?: AnimationCurve;
+                lineHeight?: number;
+                textOverflow?: 'wrap' | 'clip' | 'ellipsis';
             };
-            textbox: {
+            textbox: FlexItemProps & {
                 text?: string;
                 value?: string;
                 placeholder?: string;
@@ -79,7 +90,6 @@ declare module 'react' {
                 paddingX?: number;
                 paddingY?: number;
                 borderRadius?: number;
-                minHeight?: number;
                 preferredMultilineHeight?: number;
                 lineHeightMultiplier?: number;
                 multiline?: boolean;
@@ -106,10 +116,8 @@ declare module 'react' {
                 y?: number;
                 width?: number;
                 height?: number;
-                flexGrow?: number;
-                flexShrink?: number;
             };
-            img: {
+            img: FlexItemProps & {
                 svg?: string;
                 key?: string | number;
                 animatedVars?: string[];
@@ -117,8 +125,6 @@ declare module 'react' {
                 y?: number;
                 width?: number;
                 height?: number;
-                flexGrow?: number;
-                flexShrink?: number;
             };
             spacer: {
                 size?: number;
