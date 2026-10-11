@@ -52,7 +52,6 @@ const PALETTE = () => {
         focus_ring: light ? [0, 0, 0, 0.5] : [1, 1, 1, 0.5],
         button_hover: light ? [0, 0, 0, 0.078] : [1, 1, 1, 0.078],
         button_pressed: light ? [0, 0, 0, 0.157] : [1, 1, 1, 0.157],
-        tip_bg: light ? [1, 1, 1, 0.97] : [0.24, 0.24, 0.24, 0.97],
         clear: [0, 0, 0, 0],
         icon: light ? "#5b5b5b" : "#d8d8d8",
         icon_critical: light ? "#c42b1c" : "#ff99a4",
@@ -319,49 +318,6 @@ const build_row = (menu, metrics, entry, path, with_pid = false, under_header = 
     }
     row.append_child(hover)
 
-    // 行里放不下的内容, 悬停时在行上方补一个两行浮层
-    // 宿主必须是行且不能超过行宽 (越界会被宿主裁掉); 行宽在构建时还是 0, 所以尺寸留到悬停时再定
-    const tip_text = detail ? `${title_text} · ${detail}` : title_text
-    let tip = null
-    let tip_line1 = null
-    let tip_line2 = null
-    if (measure(tip_text, metrics.font_size) > text_room(metrics, row.width)) {
-        tip = flex()
-        tip.manual_position = true
-        tip.background_color = palette.tip_bg
-        tip.border_radius = metrics.item_radius
-        tip.x = 0
-        tip.y = -400
-        tip.set_padding(8, 8, 4, 4)
-        tip_line1 = text()
-        tip_line1.font_size = metrics.font_size
-        tip_line1.font_weight = 400
-        tip_line1.color = palette.text
-        tip.append_child(tip_line1)
-        if (detail) {
-            tip_line2 = text()
-            tip_line2.font_size = metrics.font_size
-            tip_line2.font_weight = 400
-            tip_line2.color = palette.text
-            tip.append_child(tip_line2)
-        }
-        row.append_child(tip)
-    }
-    const tip_show = () => {
-        if (!tip) return
-        const width = Math.round(row.width)
-        if (width > 32) {
-            tip.width = width
-            tip.height = (metrics.font_size + 6) * (tip_line2 ? 2 : 1) + 8
-            tip.y = -(tip.height + 4)
-            tip_line1.text = fit(title_text, width - 16, metrics.font_size)
-            if (tip_line2)
-                tip_line2.text = fit(detail, width - 16, metrics.font_size)
-        }
-    }
-    const tip_hide = () => {
-        if (tip) tip.y = -400
-    }
     menu.append_widget_after(row, -1)
 
     let armed = false
@@ -441,12 +397,10 @@ const build_row = (menu, metrics, entry, path, with_pid = false, under_header = 
         hover_token++
         hover.background_color = palette.row_hover
         show_action(false)
-        tip_show()
     }
     const leave = () => {
         if (!alive()) return
         hover.background_color = palette.clear
-        tip_hide()
         // 点一下会闪一次 leave/enter, 所以复位要等一下
         const token = ++hover_token
         shell.infra.setTimeout(() => {
