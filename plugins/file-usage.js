@@ -190,7 +190,30 @@ const holder_detail = entry => {
     return ""
 }
 
-// 整行按菜单自己的尺寸排: 行高 = 原生菜单项高度, 高亮背景一样内缩, 文字一样左偏移
+// 有原生图标列就跟着对齐; 菜单里没有原生菜单项时 (比如子菜单) 自己占一列
+const icon_column = metrics =>
+    Math.round(
+        metrics.icon_size > 0
+            ? metrics.icon_size
+            : metrics.native_items == 0
+              ? metrics.font_size + 2
+              : 0,
+    )
+
+const icon_gap = (metrics, column) =>
+    column > 0
+        ? Math.max(metrics.text_offset - metrics.icon_offset - column, 12)
+        : 0
+
+const text_x = metrics => {
+    const column = icon_column(metrics)
+    return Math.round(
+        column > 0
+            ? metrics.icon_offset + column + icon_gap(metrics, column)
+            : metrics.text_offset,
+    )
+}
+
 // 同名的进程带上 pid, 不然分不清要结束哪一个
 const build_row = (menu, metrics, entry, path, with_pid = false) => {
     const palette = PALETTE()
@@ -208,7 +231,7 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
     row.horizontal = true
     row.set_padding(inset, 0, 0, 0)
 
-    const column = Math.round(metrics.icon_size)
+    const column = icon_column(metrics)
     const hover = flex()
     hover.height = row_height
     hover.horizontal = true
@@ -263,7 +286,7 @@ const build_row = (menu, metrics, entry, path, with_pid = false) => {
         glyph.height = column
         slot.append_child(glyph)
         hover.append_child(slot)
-        hover.gap = Math.max(metrics.text_offset - metrics.icon_offset - column, 0)
+        hover.gap = icon_gap(metrics, column)
     }
     hover.append_child(body)
 
@@ -449,7 +472,7 @@ const build_header = (menu, metrics, name, count) => {
     strip.align_items = "center"
     strip.justify_content = "space_between"
     strip.set_padding(
-        Math.max(metrics.text_offset - inset, 0),
+        Math.max(text_x(metrics) - inset, 0),
         Math.max(metrics.right_reserved - inset, 0),
         0,
         0,
