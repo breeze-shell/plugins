@@ -63,6 +63,15 @@ const power_icon = color =>
 const check_icon = color =>
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="${color}" d="M13.5 4.4a.8.8 0 0 0-1.13 0L6.9 9.87 4.62 7.6A.8.8 0 0 0 3.5 8.73l2.84 2.84a.8.8 0 0 0 1.13 0l6.03-6.03a.8.8 0 0 0 0-1.13Z"/></svg>`
 
+const file_icon = color =>
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="${color}" d="M9.2 1.5H4.6A1.6 1.6 0 0 0 3 3.1v9.8a1.6 1.6 0 0 0 1.6 1.6h6.8a1.6 1.6 0 0 0 1.6-1.6V5.3L9.2 1.5Zm-.2 1.6 2.9 2.9H9V3.1Z"/></svg>`
+
+const folder_icon = color =>
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="${color}" d="M2 4.2c0-.9.7-1.6 1.6-1.6h2.5l1.4 1.6h4.9c.9 0 1.6.7 1.6 1.6v6.6c0 .9-.7 1.6-1.6 1.6H3.6A1.6 1.6 0 0 1 2 12.4V4.2Z"/></svg>`
+
+const reason_icon = (entry, color) =>
+    entry.held_file ? file_icon(color) : folder_icon(color)
+
 const flex = () => shell.breeze_ui.widgets_factory.create_flex_layout_widget()
 const text = () => shell.breeze_ui.widgets_factory.create_text_widget()
 
@@ -179,6 +188,7 @@ const build_row = (menu, metrics, entry, with_pid = false) => {
     row.horizontal = true
     row.set_padding(inset, 0, 0, 0)
 
+    const column = Math.round(metrics.icon_size)
     const hover = flex()
     hover.height = row_height
     hover.horizontal = true
@@ -186,7 +196,10 @@ const build_row = (menu, metrics, entry, with_pid = false) => {
     hover.border_radius = metrics.item_radius
     hover.background_color = palette.clear
     hover.set_padding(
-        Math.max(metrics.text_offset - inset, 0),
+        Math.max(
+            (column > 0 ? metrics.icon_offset : metrics.text_offset) - inset,
+            0,
+        ),
         Math.max(metrics.right_reserved - inset, 0),
         0,
         0,
@@ -212,6 +225,22 @@ const build_row = (menu, metrics, entry, with_pid = false) => {
 
     body.append_child(title)
     body.append_child(meta)
+
+    // 图标列里放占用原因, 空着会显得像少了图标
+    if (column > 0) {
+        const slot = flex()
+        slot.width = column
+        slot.height = column
+        slot.align_items = "center"
+        slot.justify_content = "center"
+        const glyph = shell.breeze_ui.widgets_factory.create_image_widget()
+        glyph.width = column
+        glyph.height = column
+        glyph.svg = reason_icon(entry, palette.icon)
+        slot.append_child(glyph)
+        hover.append_child(slot)
+        hover.gap = Math.max(metrics.text_offset - metrics.icon_offset - column, 0)
+    }
     hover.append_child(body)
 
     let button = null
