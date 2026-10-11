@@ -163,6 +163,15 @@ const fit_texts = (title, meta, room, title_size, meta_size) => {
 
 const holder_title = entry => entry.name || entry.app_name || `PID ${entry.pid}`
 
+// 结束失败时再查一次: 进程可能在我们点之前就自己退了
+const still_holding = (path, pid) => {
+    try {
+        return [...shell.file_usage.query(path)].some(holder => holder.pid === pid)
+    } catch (e) {
+        return true
+    }
+}
+
 const holder_detail = entry => {
     if (entry.is_current) return T.current
     if (entry.held_file) return base_name(entry.held_file)
@@ -172,7 +181,7 @@ const holder_detail = entry => {
 
 // 整行按菜单自己的尺寸排: 行高 = 原生菜单项高度, 高亮背景一样内缩, 文字一样左偏移
 // 同名的进程带上 pid, 不然分不清要结束哪一个
-const build_row = (menu, metrics, entry, with_pid = false) => {
+const build_row = (menu, metrics, entry, path, with_pid = false) => {
     const palette = PALETTE()
     const inset = metrics.background_inset
     const row_height = Math.round(metrics.item_height)
@@ -299,10 +308,17 @@ const build_row = (menu, metrics, entry, with_pid = false) => {
             paint(palette.clear, check_icon(palette.icon_success))
             meta_text = `· ${T.done}`
             meta.color = palette.success
-        } else {
+        } else if (still_holding(path, entry.pid)) {
             paint(palette.clear, power_icon(palette.icon_critical))
             meta_text = `· ${T.failed}`
             meta.color = palette.critical
+        } else {
+            // 还没点到它就自己退出了, 按已结束处理
+            settled = true
+            hover.background_color = palette.row_hover
+            paint(palette.clear, check_icon(palette.icon_success))
+            meta_text = `· ${T.done}`
+            meta.color = palette.success
         }
         meta.text = meta_text
     }
@@ -456,6 +472,14 @@ const summary = used => {
 
 const add_rows = (menu, used, with_headers) => {
     const metrics = menu.metrics
+    const order = item =>
+        [...item.processes].sort((a, b) => {
+            if (!a.held_file != !b.held_file) return a.held_file ? -1 : 1
+            const an = holder_title(a).toLowerCase()
+            const bn = holder_title(b).toLowerCase()
+            if (an != bn) return an < bn ? -1 : 1
+            return a.pid - b.pid
+        })
     const names = new Map()
     for (const item of used)
         for (const entry of item.processes) {
@@ -476,12 +500,13 @@ const add_rows = (menu, used, with_headers) => {
                 ),
             )
         }
-        for (const entry of item.processes)
+        for (const entry of order(item))
             rows.push(
                 build_row(
                     menu,
                     metrics,
                     entry,
+                    item.path,
                     names.get(holder_title(entry)).size > 1,
                 ),
             )
