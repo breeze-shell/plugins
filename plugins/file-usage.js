@@ -1,6 +1,6 @@
 // @name: 文件占用查询
 // @description: 右键查看文件/文件夹被哪个进程占用, 并能一键结束该进程 / Show which process is using the file or folder, and kill it from the menu
-// @version: 0.2.0
+// @version: 0.3.0
 // @author: breeze-shell
 
 import * as shell from "mshell"
