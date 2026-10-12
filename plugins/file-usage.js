@@ -654,6 +654,12 @@ shell.menu_controller.add_menu_listener(ctx => {
     const menu = ctx.menu
     const placeholder = menu.append_item({ name: T.checking, disabled: true })
 
+    // 选中的文件一个都没被占用是最常见的情况: 一次会话就能判定, 不用逐个查
+    if (!shell.file_usage.any_in_use(paths)) {
+        placeholder.remove()
+        return
+    }
+
     const used = []
     let index = 0
     // 一次只查一个: 单次查询要 150ms 上下, 一次查完选中的上百个文件会把菜单卡死
