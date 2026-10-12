@@ -654,16 +654,18 @@ shell.menu_controller.add_menu_listener(ctx => {
     const menu = ctx.menu
     const placeholder = menu.append_item({ name: T.checking, disabled: true })
 
-    // 查询可能比较慢, 先让菜单出来再补内容
-    shell.infra.setTimeout(() => {
+    const used = []
+    let index = 0
+    // 一次只查一个: 单次查询要 150ms 上下, 一次查完选中的上百个文件会把菜单卡死
+    const collect = () => {
         try {
             if (!menu.valid()) return
-            const used = paths
-                .map(path => ({
-                    path,
-                    processes: [...shell.file_usage.query(path)],
-                }))
-                .filter(item => item.processes.length)
+            const processes = [...shell.file_usage.query(paths[index])]
+            if (processes.length) used.push({ path: paths[index], processes })
+            if (++index < paths.length) {
+                shell.infra.setTimeout(collect, 0)
+                return
+            }
             placeholder.remove()
             if (!used.length) return
 
@@ -687,5 +689,6 @@ shell.menu_controller.add_menu_listener(ctx => {
                 placeholder.remove()
             } catch (inner) {}
         }
-    }, 0)
+    }
+    shell.infra.setTimeout(collect, 0)
 })
