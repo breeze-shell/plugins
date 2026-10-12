@@ -596,22 +596,34 @@ const selected_paths = context =>
         path => typeof path === "string" && path.length > 0,
     )
 
-const summary = used => {
+const order = item =>
+    [...item.processes].sort((a, b) => {
+        if (!a.held_file != !b.held_file) return a.held_file ? -1 : 1
+        const an = holder_title(a).toLowerCase()
+        const bn = holder_title(b).toLowerCase()
+        if (an != bn) return an < bn ? -1 : 1
+        return a.pid - b.pid
+    })
+
+const summary = (used, metrics) => {
     const total = used.reduce((sum, item) => sum + item.processes.length, 0)
-    if (used.length === 1) return T.one(holder_title(used[0].processes[0]), total)
+    // 进程名长短差很多, 不截断会把菜单撑到满屏; 只截名字, 后面的计数留着
+    if (used.length === 1) {
+        const budget =
+            LAYOUT.max_width -
+            metrics.text_offset -
+            metrics.right_reserved -
+            measure(T.one("", total), metrics.font_size)
+        return T.one(
+            fit(holder_title(order(used[0])[0]), Math.max(budget, 60), metrics.font_size),
+            total,
+        )
+    }
     return T.many(used.length, total)
 }
 
 const add_rows = (menu, used, with_headers) => {
     const metrics = menu.metrics
-    const order = item =>
-        [...item.processes].sort((a, b) => {
-            if (!a.held_file != !b.held_file) return a.held_file ? -1 : 1
-            const an = holder_title(a).toLowerCase()
-            const bn = holder_title(b).toLowerCase()
-            if (an != bn) return an < bn ? -1 : 1
-            return a.pid - b.pid
-        })
     const names = new Map()
     for (const item of used)
         for (const entry of item.processes) {
@@ -678,7 +690,7 @@ shell.menu_controller.add_menu_listener(ctx => {
                 return
             }
             menu.append_item({
-                name: summary(used),
+                name: summary(used, menu.metrics),
                 // 菜单本来没有图标列就别加图标, 否则原生菜单项会整体右移
                 icon_svg:
                     menu.metrics.icon_size > 0
