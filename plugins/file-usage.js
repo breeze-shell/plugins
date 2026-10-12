@@ -652,13 +652,10 @@ shell.menu_controller.add_menu_listener(ctx => {
     if (!paths.length) return
 
     const menu = ctx.menu
-    const placeholder = menu.append_item({ name: T.checking, disabled: true })
+    // 一个都没被占用是最常见的情况: 一次会话就能判定。先摆占位项再撤掉会闪一下, 所以放在前面
+    if (!shell.file_usage.any_in_use(paths)) return
 
-    // 选中的文件一个都没被占用是最常见的情况: 一次会话就能判定, 不用逐个查
-    if (!shell.file_usage.any_in_use(paths)) {
-        placeholder.remove()
-        return
-    }
+    const placeholder = menu.append_item({ name: T.checking, disabled: true })
 
     const used = []
     let index = 0
