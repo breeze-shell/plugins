@@ -15,7 +15,7 @@ import {
     unwrapGroup,
     wrapInGroup
 } from '../src/model';
-import { adoptUnmanaged, applyProfile, analysePlan, buildCanvas, captureMenu, classifyMenu, expandArgs, makeSnapshot, matchesProfileContext, nodesFromSnapshot, planMenu, tidyPlan } from '../src/plan';
+import { adoptUnmanaged, applyProfile, analysePlan, buildCanvas, captureMenu, classifyMenu, dropSlots, expandArgs, isNoopDrop, makeSnapshot, matchesProfileContext, nodesFromSnapshot, planMenu, tidyPlan } from '../src/plan';
 import { defaultSettings, normalizeSettings } from '../src/settings';
 import { HISTORY_LIMIT, emptyHistory, recordHistory, redoHistory, undoHistory } from '../src/history';
 import { KEY, shortcutFor, stepIndex } from '../src/shortcuts';
@@ -478,6 +478,44 @@ const canvasTests = () => {
     checkEq('keep-original 不标记策略隐藏', buildCanvas(pProfile([a], 'keep-original'), canvasSnap(['r:A', 'r:B']), []).map(row => row.hiddenByPolicy), [false, false]);
 };
 
+/* ------------------------------------------------------------- 拖拽落点 */
+
+const dropTests = () => {
+    section('drop target');
+
+    const nodes = [mkItem('a'), mkItem('b'), mkItem('c')];
+    const anchor = (key: string, index: number, virtual = false) => ({ key, parentId: null, index, virtual });
+
+    checkEq('落在自己那两个槽位是原地不动', [1, 2].map(index => isNoopDrop(anchor('b', 1), nodes, null, index)), [true, true]);
+    check('往上一个槽位不是原地', isNoopDrop(anchor('b', 1), nodes, null, 0) === false);
+    check('往下越过一格不是原地', isNoopDrop(anchor('b', 1), nodes, null, 3) === false);
+    check('换父节点不是原地', isNoopDrop({ ...anchor('b', 1), parentId: 'g' }, nodes, 'h', 0) === false);
+    check('同一容器里落在自己那两个槽位仍是原地', isNoopDrop({ ...anchor('b', 1), parentId: 'g' }, nodes, 'g', 2) === true);
+    check('未纳入的原生行没有原地一说', isNoopDrop(anchor('virtual:r:X', -1, true), nodes, null, 0) === false);
+    check('拖到回收站不是原地', isNoopDrop(anchor('b', 1), nodes, '__trash', 0) === false);
+
+    const nested = [mkGroup('g', [mkGroup('h', []), mkItem('x')])];
+    check('拖进自己不是原地', isNoopDrop(anchor('g', 0), nested, 'g', 0) === true);
+    check('拖进自己的后代不是原地', isNoopDrop(anchor('g', 0), nested, 'h', 0) === true);
+
+    const rows = (...spec: [boolean, number][]) => spec.map(([virtual, index]) => ({ virtual, index }));
+    checkEq('每个真实行各带一个下方槽位', dropSlots(rows([false, 0], [false, 1])), [
+        { at: 0, index: 0 },
+        { at: 1, index: 1 },
+        { at: 2, index: 2 }
+    ]);
+    checkEq('末尾的原生行不占槽位', dropSlots(rows([false, 0], [true, -1], [true, -1])), [
+        { at: 0, index: 0 },
+        { at: 1, index: 1 }
+    ]);
+    checkEq('夹在中间的原生行不占槽位', dropSlots(rows([true, -1], [false, 0], [true, -1], [false, 1])), [
+        { at: 1, index: 0 },
+        { at: 2, index: 1 },
+        { at: 4, index: 2 }
+    ]);
+    checkEq('只有原生行时没有槽位', dropSlots(rows([true, -1])), []);
+};
+
 /* ------------------------------------------------------------- history */
 
 const historyTests = () => {
@@ -754,7 +792,7 @@ const settingsTests = () => {
     check('分组标签非空', MENU_KINDS.every(kind => flatten(fixed.profiles[kind].nodes).every(entry => entry.node.kind !== 'group' || entry.node.label.trim().length > 0)));
     const nodeIds = flatten(fixed.profiles.files.nodes).map(entry => entry.node.id);
     check('自动补出的节点 id 非空且唯一', nodeIds.every(id => typeof id === 'string' && id.length > 0) && new Set(nodeIds).size === nodeIds.length);
-    checkEq('布尔与枚举兜底', [fixed.showMenuEntry, fixed.logLevel], [true, 'basic']);
+    checkEq('布尔与枚举兜底', [fixed.showMenuEntry, fixed.logLevel], [defaultSettings().showMenuEntry, 'basic']);
     check('不再写出无人读取的 version 字段', !('version' in fixed));
     checkEq('坏快照被过滤', Object.keys(fixed.snapshots), ['files']);
     checkEq('快照条目被清洗', fixed.snapshots.files?.items.map(item => item.key), ['a']);
@@ -812,6 +850,7 @@ captureTests();
 planTests();
 warningTests();
 canvasTests();
+dropTests();
 historyTests();
 shortcutTests();
 applyTests();

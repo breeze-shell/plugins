@@ -5,7 +5,7 @@ import { emptyProfile, newId } from './model';
 export const defaultSettings = (): Settings => {
     const profiles = {} as Record<MenuKind, Profile>;
     for (const kind of MENU_KINDS) profiles[kind] = emptyProfile(kind);
-    return { profiles, snapshots: {}, showMenuEntry: true, logLevel: 'basic' };
+    return { profiles, snapshots: {}, showMenuEntry: false, logLevel: 'basic' };
 };
 
 const normalizeIcon = (raw: unknown): IconSpec => {
@@ -162,7 +162,7 @@ export const normalizeSettings = (raw: unknown): Settings => {
         }
     }
 
-    base.showMenuEntry = input.showMenuEntry !== false;
+    base.showMenuEntry = input.showMenuEntry === true;
     base.logLevel = input.logLevel === 'off' || input.logLevel === 'verbose' ? input.logLevel : 'basic';
     return base;
 };

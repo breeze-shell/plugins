@@ -245,7 +245,7 @@ const runMenuPhase = hook => {
             if (!profile) return;
             hook.setSettings({
                 ...hook.settings(),
-                showMenuEntry: true,
+                showMenuEntry: false,
                 profiles: { ...hook.settings().profiles, other: profile }
             });
             hook.flush();

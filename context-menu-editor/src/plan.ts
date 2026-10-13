@@ -1,6 +1,6 @@
 import * as shell from 'mshell';
 import { ItemNode, ItemRef, MenuKind, Node, Profile, Snapshot, SnapshotItem, UnmanagedPolicy } from './types';
-import { itemNode, reidentify } from './model';
+import { isDescendant, itemNode, reidentify } from './model';
 import { menuIcon } from './theme';
 
 export type CapturedItem = {
@@ -268,6 +268,26 @@ export const buildCanvas = (profile: Profile, snapshot: Snapshot | null, expande
     };
     walkOrdered(profile.nodes, null, 0);
     return rows.concat(pending);
+};
+
+export type DropAnchor = { parentId: string | null; index: number; virtual: boolean };
+
+// 松手后什么都不会变的落点: 自己所在的那两个槽位, 以及自己/自己的后代当容器
+export const isNoopDrop = (source: DropAnchor & { key: string }, nodes: Node[], parentId: string | null, index: number): boolean => {
+    if (source.virtual || parentId === '__trash') return false;
+    if (parentId === source.key) return true;
+    if (parentId !== null && isDescendant(nodes, source.key, parentId)) return true;
+    return parentId === source.parentId && (index === source.index || index === source.index + 1);
+};
+
+export type DropSlot = { at: number; index: number };
+
+// 插入提示只贴在真实行旁边: 第一个真实行的上方, 以及每个真实行的下方。
+// 未纳入的原生行位置由原生顺序决定, 提示画在它们中间会指着一个落不到的地方。
+export const dropSlots = (level: { virtual: boolean; index: number }[]): DropSlot[] => {
+    const real = level.map((row, at) => ({ row, at })).filter(entry => !entry.row.virtual);
+    if (real.length === 0) return [];
+    return [{ at: real[0].at, index: 0 }, ...real.map(entry => ({ at: entry.at + 1, index: entry.row.index + 1 }))];
 };
 
 export const adoptUnmanaged = (profile: Profile, snapshot: Snapshot | null): { nodes: Node[]; added: number } => {

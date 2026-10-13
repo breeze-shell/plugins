@@ -20,7 +20,7 @@ import {
     updateNode,
     wrapInGroup
 } from './model';
-import { CanvasRow, PlanWarningKind, adoptUnmanaged, analysePlan, buildCanvas } from './plan';
+import { CanvasRow, DropAnchor, PlanWarningKind, adoptUnmanaged, analysePlan, buildCanvas, dropSlots, isNoopDrop } from './plan';
 import { History, emptyHistory, recordHistory, redoHistory, undoHistory } from './history';
 import { ShortcutAction, shortcutFor, stepIndex } from './shortcuts';
 import { COLOR_VARS, FAST, Icons, fluent, toneColor } from './theme';
@@ -86,11 +86,12 @@ const WARNING_TEXT: Record<PlanWarningKind, string> = {
     'dead-separator': t('这里的分隔线会被省略', 'This separator is dropped')
 };
 
-type DropTarget = { parentId: string | null; index: number; slot: number; mode: 'before' | 'after' | 'inside' };
-type DragState = { sourceKey: string; label: string };
-type ArmState = { sourceKey: string; label: string; moves: number; row: string | null };
+type DropTarget = { parentId: string | null; index: number; mode: 'before' | 'after' | 'inside' };
+type DragState = { sourceKey: string };
+type ArmState = DropAnchor & { key: string; moves: number; row: string | null };
 
 const DOUBLE_CLICK_MS = 400;
+const SLOT_HEIGHT = 3;
 
 const clockText = (at: number): string => {
     if (!at) return '-';
@@ -285,36 +286,6 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
         [startRename]
     );
 
-    const offer = useCallback((target: DropTarget) => {
-        if (offerTakenRef.current) return;
-        offerTakenRef.current = true;
-        if (offerTimerRef.current !== null) shell.infra.clearTimeout(offerTimerRef.current);
-        offerTimerRef.current = shell.infra.setTimeout(() => {
-            offerTimerRef.current = null;
-            offerTakenRef.current = false;
-        }, 0);
-        dropRef.current = target;
-        setDrop(target);
-    }, []);
-
-    const arm = useCallback((sourceKey: string, label: string) => {
-        armRef.current = { sourceKey, label, moves: 0, row: null };
-    }, []);
-
-    const noteArmMove = useCallback(
-        (overRow: string) => {
-            const state = armRef.current;
-            if (!state || dragActiveRef.current) return;
-            state.moves += 1;
-            const moved = state.row !== null && state.row !== overRow;
-            state.row = overRow;
-            if (state.moves < 2 && !moved) return;
-            dragActiveRef.current = true;
-            setDrag({ sourceKey: state.sourceKey, label: state.label });
-        },
-        []
-    );
-
     const endDrag = useCallback(() => {
         armRef.current = null;
         dragActiveRef.current = false;
@@ -323,14 +294,67 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
         setDrop(null);
     }, []);
 
+    const offer = useCallback((target: DropTarget) => {
+        if (offerTakenRef.current) return;
+        offerTakenRef.current = true;
+        if (offerTimerRef.current !== null) shell.infra.clearTimeout(offerTimerRef.current);
+        offerTimerRef.current = shell.infra.setTimeout(() => {
+            offerTimerRef.current = null;
+            offerTakenRef.current = false;
+        }, 0);
+        const state = armRef.current;
+        // 落在原地的那两个槽位不画提示也不落子: 画了线却什么都不动正是"拖了没反应"
+        if (state !== null && isNoopDrop(state, profile.nodes, target.parentId, target.index)) {
+            dropRef.current = null;
+            setDrop(null);
+            return;
+        }
+        dropRef.current = target;
+        setDrop(target);
+    }, [profile.nodes]);
+
+    const arm = useCallback(
+        (row: CanvasRow) => {
+            if (dragActiveRef.current || dropRef.current !== null) endDrag();
+            armRef.current = { key: row.key, moves: 0, row: null, parentId: row.parentId, index: row.index, virtual: row.virtual };
+        },
+        [endDrag]
+    );
+
+    const noteArmMove = useCallback((overRow: string) => {
+        const state = armRef.current;
+        if (!state || dragActiveRef.current) return;
+        state.moves += 1;
+        const moved = state.row !== null && state.row !== overRow;
+        state.row = overRow;
+        if (state.moves < 2 && !moved) return;
+        dragActiveRef.current = true;
+        setDrag({ sourceKey: state.key });
+    }, []);
+
+    const canOffer = useCallback((key: string) => dragActiveRef.current && armRef.current !== null && armRef.current.key !== key, []);
+
+    // 上一次拖拽没等到松手时留下的悬空状态: 下一次按下或 Esc 都要清掉, 免得提示和落点串到下一次
+    const cancelDrag = useCallback(() => {
+        if (!dragActiveRef.current && dropRef.current === null && (armRef.current === null || armRef.current.moves === 0)) return false;
+        endDrag();
+        return true;
+    }, [endDrag]);
+
     const applyDrop = useCallback(
-        (target: DropTarget, sourceKey: string) => {
-            const source = rows.find(row => row.key === sourceKey);
+        (target: DropTarget, state: ArmState) => {
+            const source = rows.find(row => row.key === state.key);
             if (!source) return;
 
             if (target.parentId === '__trash') {
-                if (source.virtual) return;
                 const name = nodeLabel(source.node, '');
+                // 原生行本来就不在规则里, "移出规则"对它只能是隐藏
+                if (source.virtual) {
+                    const base = asRule(source);
+                    mutate(updateNode(base.nodes, base.id, toggledHidden), t(`已隐藏「${name}」· Ctrl+Z 撤销`, `Hid “${name}” · Ctrl+Z undoes it`), false);
+                    setSelected(base.id);
+                    return;
+                }
                 mutate(removeNode(profile.nodes, source.node.id).nodes, t(`已把「${name}」移出规则 · Ctrl+Z 撤销`, `Removed “${name}” from the rules · Ctrl+Z undoes it`), false);
                 return;
             }
@@ -353,14 +377,13 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
                 return;
             }
 
-            const targetIsSelf = target.parentId === source.parentId && (target.index === source.index || target.index === source.index + 1);
-            if (targetIsSelf) return;
+            if (isNoopDrop(state, profile.nodes, target.parentId, target.index)) return;
             const moved = moveNode(profile.nodes, source.node.id, target.parentId, target.index);
             if (moved === profile.nodes || orderKey(moved) === orderKey(profile.nodes)) return;
             mutate(moved, t(`已移动「${nodeLabel(source.node, '')}」 · Ctrl+Z 撤销`, `Moved “${nodeLabel(source.node, '')}” · Ctrl+Z undoes it`));
             setSelected(source.node.id);
         },
-        [mutate, profile.nodes, rows]
+        [asRule, mutate, profile.nodes, rows]
     );
 
     const finishDrag = useCallback(() => {
@@ -368,7 +391,7 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
         const target = dropRef.current;
         const active = dragActiveRef.current;
         const dropped = state !== null && active && target !== null;
-        if (dropped && state && target) applyDrop(target, state.sourceKey);
+        if (dropped && state && target) applyDrop(target, state);
         endDrag();
         if (active && !dropped) setStatus(IDLE_HINT);
     }, [applyDrop, endDrag]);
@@ -519,6 +542,7 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
     const onKey = useCallback(
         (key: number, shift: boolean, ctrl: boolean, alt: boolean, meta: boolean): boolean => {
             if (isTyping()) return false;
+            if (key === 256 && cancelDrag()) return true;
             const action: ShortcutAction | null = shortcutFor(
                 key,
                 { shift, ctrl, alt, super: meta },
@@ -547,33 +571,37 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
             }
             return true;
         },
-        [duplicateSelected, editing, history, moveSelected, redo, removeSelected, selected, selectedRow, startRename, stepSelection, stopEditing, undo]
+        [cancelDrag, duplicateSelected, editing, history, moveSelected, redo, removeSelected, selected, selectedRow, startRename, stepSelection, stopEditing, undo]
     );
 
     const renderRows = (parentId: string | null, keyPrefix: string): ReactNode[] => {
         const level = rows.filter(row => row.parentId === parentId);
         const out: ReactNode[] = [];
-        const lineAt = (slot: number) => drop !== null && drop.mode !== 'inside' && drop.parentId === parentId && drop.slot === slot;
+        const slotIndex = new Map(dropSlots(level).map(entry => [entry.at, entry.index]));
+        const slotActive = (index: number) => drop !== null && drop.mode !== 'inside' && drop.parentId === parentId && drop.index === index;
+        // 槽位一直是树的一部分, 拖动时只换颜色, 免得中途插/删控件打断按下链
+        const pushSlot = (at: number) => {
+            const index = slotIndex.get(at);
+            if (index !== undefined) out.push(<DropSlot key={`${keyPrefix}-slot-${index}`} c={c} active={slotActive(index)} />);
+        };
         let realBefore = 0;
         level.forEach((row, position) => {
             const insertBefore = row.virtual ? realBefore : row.index;
             const insertAfter = row.virtual ? realBefore : row.index + 1;
             if (!row.virtual) realBefore = row.index + 1;
-            if (lineAt(position)) out.push(<DropLine key={`${keyPrefix}-line-${row.key}`} c={c} />);
+            pushSlot(position);
             const warningKind = row.virtual ? null : warnings.get(row.node.id) ?? null;
             out.push(
                 <RowView
                     key={row.key}
                     c={c}
                     row={row}
-                    position={position}
                     insertBefore={insertBefore}
                     insertAfter={insertAfter}
                     selected={selected === row.key}
                     dragging={drag?.sourceKey === row.key}
                     insideHint={drop?.mode === 'inside' && drop.parentId === row.node.id && row.node.kind === 'group'}
                     expanded={row.node.kind === 'group' && expanded.includes(row.node.id)}
-                    active={drag !== null}
                     editing={editing && editing.key === row.key ? editing.value : null}
                     warning={warningKind ? WARNING_TEXT[warningKind] : null}
                     onEditValue={value => setEditing(prev => (prev ? { ...prev, value } : prev))}
@@ -583,6 +611,7 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
                     onRowDown={onRowDown}
                     onArm={arm}
                     onMove={noteArmMove}
+                    canOffer={canOffer}
                     onUp={finishDrag}
                     offer={offer}
                     claim={claim}
@@ -607,18 +636,25 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
                     <flex key={`${row.key}-body`} horizontal={false} alignItems="stretch" paddingLeft={22} gap={2}>
                         <flex horizontal={false} alignItems="stretch" padding={5} gap={2} borderRadius={6} borderColor={c.divider} borderWidth={1} backgroundColor={c.subtle}>
                             {renderRows(row.node.id, `${keyPrefix}-${row.key}`)}
-                            <GroupTail c={c} groupId={row.node.id} index={row.node.children.length} offer={offer} active={drag !== null} />
+                            <GroupTail
+                                c={c}
+                                groupId={row.node.id}
+                                index={row.node.children.length}
+                                offer={offer}
+                                active={drag !== null}
+                                targeted={drop?.mode === 'inside' && drop.parentId === row.node.id}
+                            />
                         </flex>
                     </flex>
                 );
             }
+            pushSlot(position + 1);
         });
-        if (level.length > 0 && lineAt(level.length)) out.push(<DropLine key={`${keyPrefix}-line-end`} c={c} />);
         return out;
     };
 
     return (
-        <flex horizontal={false} width={WINDOW_WIDTH} height={WINDOW_HEIGHT} backgroundColor={c.windowBg} alignItems="stretch" onKeyDown={onKey}>
+        <flex horizontal={false} width={WINDOW_WIDTH} height={WINDOW_HEIGHT} backgroundColor={c.windowBg} alignItems="stretch" onKeyDown={onKey} onMouseDown={cancelDrag}>
             <Header
                 c={c}
                 kind={kind}
@@ -694,12 +730,12 @@ export const ContextMenuEditor = memo((props: EditorProps) => {
                                     ) : (
                                         renderRows(null, 'root')
                                     )}
-                                    <MenuTail c={c} offer={offer} active={drag !== null} index={profile.nodes.length} slot={rows.filter(row => row.parentId === null).length} />
+                                    <MenuTail c={c} offer={offer} active={drag !== null} targeted={drop?.parentId === null && drop.mode === 'after' && drop.index === profile.nodes.length} index={profile.nodes.length} />
                                 </flex>
                             </Card>
 
                             <Card c={c} padding={8} gap={5}>
-                                <TrashZone c={c} offer={offer} active={drag !== null} virtualCount={stats.virtual} />
+                                <TrashZone c={c} offer={offer} active={drag !== null} targeted={drop?.parentId === '__trash'} virtualCount={stats.virtual} />
                             </Card>
 
                             <Card c={c} padding={9} gap={6}>
@@ -785,89 +821,71 @@ const ShortcutHints = ({ c }: { c: ReturnType<typeof fluent> }) => {
     );
 };
 
-const TrashZone = ({ c, offer, active, virtualCount }: { c: ReturnType<typeof fluent>; offer: (t: DropTarget) => void; active: boolean; virtualCount: number }) => {
-    const hover = useHoverActive();
-    const hovered = active && hover.isHovered;
-    return (
-        <flex
-            horizontal={true}
-            height={30}
-            alignItems="center"
-            gap={8}
-            paddingLeft={8}
-            paddingRight={8}
-            borderRadius={5}
-            borderColor={hovered ? c.dangerText : c.divider}
-            borderWidth={1}
-            backgroundColor={hovered ? c.dangerSoft : undefined}
-            onMouseEnter={hover.onMouseEnter}
-            onMouseLeave={hover.onMouseLeave}
-            onMouseMove={() => {
-                if (active) offer({ parentId: '__trash', index: 0, slot: -1, mode: 'inside' });
-            }}
-        >
-            {iconElement(Icons.trash, 12, hovered ? c.dangerText : c.textSecondary)}
-            <Text c={c} text={t('拖到这里 = 移出规则（还原成原生项）', 'Drop here to remove the rule')} fontSize={11} color={hovered ? c.dangerText : c.textSecondary} />
-            <flex flexGrow={1} />
-            <Text
-                c={c}
-                text={virtualCount > 0 ? t(`${virtualCount} 项未纳入的原生项`, `${virtualCount} native items unmanaged`) : t('原生项都已在规则里', 'Every native item is managed')}
-                fontSize={10}
-                color={c.textTertiary}
-            />
-        </flex>
-    );
-};
-
-const DropLine = ({ c }: { c: ReturnType<typeof fluent> }) => (
-    <flex horizontal={true} height={3} alignItems="center" paddingLeft={4} paddingRight={4}>
-        <flex flexGrow={1} height={2} borderRadius={1} backgroundColor={c.accent} />
+const TrashZone = ({ c, offer, active, targeted, virtualCount }: { c: ReturnType<typeof fluent>; offer: (t: DropTarget) => void; active: boolean; targeted: boolean; virtualCount: number }) => (
+    <flex
+        horizontal={true}
+        height={30}
+        alignItems="center"
+        gap={8}
+        paddingLeft={8}
+        paddingRight={8}
+        borderRadius={5}
+        borderColor={targeted ? c.dangerText : c.divider}
+        borderWidth={1}
+        backgroundColor={targeted ? c.dangerSoft : undefined}
+        onMouseMove={() => {
+            if (active) offer({ parentId: '__trash', index: 0, mode: 'inside' });
+        }}
+    >
+        {iconElement(Icons.trash, 12, targeted ? c.dangerText : c.textSecondary)}
+        <Text c={c} text={t('拖到这里 = 移出规则（还原成原生项）', 'Drop here to remove the rule')} fontSize={11} color={targeted ? c.dangerText : c.textSecondary} />
+        <flex flexGrow={1} />
+        <Text
+            c={c}
+            text={virtualCount > 0 ? t(`${virtualCount} 项未纳入的原生项`, `${virtualCount} native items unmanaged`) : t('原生项都已在规则里', 'Every native item is managed')}
+            fontSize={10}
+            color={c.textTertiary}
+        />
     </flex>
 );
 
-const GroupTail = ({ c, groupId, index, offer, active }: { c: ReturnType<typeof fluent>; groupId: string; index: number; offer: (t: DropTarget) => void; active: boolean }) => {
-    const hover = useHoverActive();
-    const hovered = active && hover.isHovered;
-    return (
-        <flex
-            horizontal={true}
-            height={22}
-            alignItems="center"
-            justifyContent="center"
-            borderRadius={4}
-            backgroundColor={hovered ? c.accentSoft : undefined}
-            onMouseEnter={hover.onMouseEnter}
-            onMouseLeave={hover.onMouseLeave}
-            onMouseMove={() => {
-                if (active) offer({ parentId: groupId, index, slot: -1, mode: 'inside' });
-            }}
-        >
-            <Text c={c} text={hovered ? t('放进这个分组', 'Drop into this group') : t('拖到这里 = 放进分组', 'Drop here to add into the group')} fontSize={10} color={hovered ? c.accent : c.textTertiary} />
-        </flex>
-    );
-};
+const DropSlot = ({ c, active }: { c: ReturnType<typeof fluent>; active: boolean }) => (
+    <flex horizontal={true} height={SLOT_HEIGHT} alignItems="center" paddingLeft={4} paddingRight={4}>
+        <flex flexGrow={1} height={2} borderRadius={1} backgroundColor={active ? c.accent : c.transparent} />
+    </flex>
+);
 
-const MenuTail = ({ c, offer, active, index, slot }: { c: ReturnType<typeof fluent>; offer: (t: DropTarget) => void; active: boolean; index: number; slot: number }) => {
-    const hover = useHoverActive();
-    const hovered = active && hover.isHovered;
-    return (
-        <flex
-            horizontal={true}
-            height={22}
-            alignItems="center"
-            justifyContent="center"
-            borderRadius={4}
-            backgroundColor={hovered ? c.accentSoft : undefined}
-            onMouseEnter={hover.onMouseEnter}
-            onMouseLeave={hover.onMouseLeave}
-            onMouseMove={() => {
-                if (active) offer({ parentId: null, index, slot, mode: 'after' });
-            }}
-        >
-            <Text c={c} text={!active ? '' : hovered ? t('放到菜单末尾', 'Move to the end') : t('菜单末尾', 'End of menu')} fontSize={11} color={hovered ? c.accent : c.textTertiary} />
-        </flex>
-    );
-};
+const GroupTail = ({ c, groupId, index, offer, active, targeted }: { c: ReturnType<typeof fluent>; groupId: string; index: number; offer: (t: DropTarget) => void; active: boolean; targeted: boolean }) => (
+    <flex
+        horizontal={true}
+        height={22}
+        alignItems="center"
+        justifyContent="center"
+        borderRadius={4}
+        backgroundColor={targeted ? c.accentSoft : undefined}
+        onMouseMove={() => {
+            if (active) offer({ parentId: groupId, index, mode: 'inside' });
+        }}
+    >
+        <Text c={c} text={targeted ? t('放进这个分组', 'Drop into this group') : t('拖到这里 = 放进分组', 'Drop here to add into the group')} fontSize={10} color={targeted ? c.accent : c.textTertiary} />
+    </flex>
+);
+
+const MenuTail = ({ c, offer, active, targeted, index }: { c: ReturnType<typeof fluent>; offer: (t: DropTarget) => void; active: boolean; targeted: boolean; index: number }) => (
+    <flex
+        horizontal={true}
+        height={22}
+        alignItems="center"
+        justifyContent="center"
+        borderRadius={4}
+        backgroundColor={targeted ? c.accentSoft : undefined}
+        onMouseMove={() => {
+            if (active) offer({ parentId: null, index, mode: 'after' });
+        }}
+    >
+        <Text c={c} text={!active ? '' : targeted ? t('放到菜单末尾', 'Move to the end') : t('菜单末尾', 'End of menu')} fontSize={11} color={targeted ? c.accent : c.textTertiary} />
+    </flex>
+);
 
 const TinyButton = ({ c, icon, onClick, tone, size = 22, disabled }: { c: ReturnType<typeof fluent>; icon: string; onClick: () => void; tone?: string; size?: number; disabled?: boolean }) => {
     const hover = useHoverActive();
@@ -898,14 +916,12 @@ const TinyButton = ({ c, icon, onClick, tone, size = 22, disabled }: { c: Return
 type RowProps = {
     c: ReturnType<typeof fluent>;
     row: CanvasRow;
-    position: number;
     insertBefore: number;
     insertAfter: number;
     selected: boolean;
     dragging: boolean;
     insideHint: boolean;
     expanded: boolean;
-    active: boolean;
     editing: string | null;
     warning: string | null;
     onEditValue: (value: string) => void;
@@ -913,8 +929,9 @@ type RowProps = {
     onCancelEdit: () => void;
     onSelect: (row: CanvasRow) => void;
     onRowDown: (row: CanvasRow) => boolean;
-    onArm: (key: string, label: string) => void;
+    onArm: (row: CanvasRow) => void;
     onMove: (overRow: string) => void;
+    canOffer: (key: string) => boolean;
     onUp: () => void;
     offer: (t: DropTarget) => void;
     claim: (key: string) => void;
@@ -984,21 +1001,20 @@ const RowView = memo((props: RowProps) => {
                 if (props.isClaimed()) return;
                 if (props.onRowDown(row)) return;
                 props.onSelect(row);
-                props.onArm(row.key, label);
+                props.onArm(row);
             }}
             onMouseUp={props.onUp}
             onMouseMove={(_x, y) => {
                 props.onMove(row.key);
-                if (!props.active || props.dragging) return;
+                if (!props.canOffer(row.key)) return;
                 if (isGroup && y > ROW_HEIGHT * 0.28 && y < ROW_HEIGHT * 0.72) {
-                    props.offer({ parentId: node.id, index: 0, slot: -1, mode: 'inside' });
+                    props.offer({ parentId: node.id, index: 0, mode: 'inside' });
                     return;
                 }
                 const below = y >= ROW_HEIGHT / 2;
                 props.offer({
                     parentId: row.parentId,
                     index: below ? props.insertAfter : props.insertBefore,
-                    slot: below ? props.position + 1 : props.position,
                     mode: below ? 'after' : 'before'
                 });
             }}

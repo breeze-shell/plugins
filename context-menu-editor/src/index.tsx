@@ -125,6 +125,11 @@ export const onMenu = (ctx: shell.menu_info_basic_js) => {
     if (settings.logLevel === 'verbose') helper.log(`${info.kind}: ${result.reason} (native=${result.captured})`);
 
     if (settings.showMenuEntry) appendEntry(ctx, info.kind);
+
+    ctx.screenside_button.add_button(menuIcon(Icons.sliders), () => {
+        ctx.menu.close();
+        openEditor(info.kind);
+    });
 };
 
 shell.menu_controller.add_menu_listener(onMenu);
